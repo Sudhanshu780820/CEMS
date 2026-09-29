@@ -1,0 +1,27 @@
+﻿# ==============================================================================
+# Backend .gitignore
+# ==============================================================================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Sensitive properties & secrets
+application-local.properties
+application-prod.properties
+.env
+.env.local
+*.env
+*.pem
+*.key
+
+# IDE & Editor files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# Logs
+logs/
+*.log

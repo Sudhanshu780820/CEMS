@@ -46,7 +46,17 @@ export default function StudentEventsPage() {
 
   const categories = ['ALL', 'Technical', 'Workshop', 'Cultural', 'Seminar', 'Sports'];
 
+  const isCompletedEvent = (e) => {
+    if (e.status === 'COMPLETED' || e.status === 'CANCELLED') return true;
+    if (!e.eventDate) return false;
+    const now = new Date();
+    const eventEnd = new Date(`${e.eventDate}T${e.endTime || '23:59:59'}`);
+    return eventEnd < now;
+  };
+
   const filteredEvents = events.filter((e) => {
+    if (isCompletedEvent(e)) return false;
+
     const matchesSearch = !searchQuery.trim() ||
       e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -148,7 +158,14 @@ export default function StudentEventsPage() {
                     </div>
 
                     <div className="absolute top-3 right-3">
-                      <Badge variant="default" size="sm">
+                      <Badge
+                        variant={
+                          event.actionStatus === 'REGISTER NOW' ? 'success' :
+                          event.actionStatus === 'REGISTRATION NOT STARTED' ? 'warning' :
+                          event.actionStatus === 'ALREADY REGISTERED' ? 'purple' : 'default'
+                        }
+                        size="sm"
+                      >
                         {event.actionStatus}
                       </Badge>
                     </div>
@@ -171,6 +188,13 @@ export default function StudentEventsPage() {
                         <span className="truncate">{event.venue?.name}</span>
                       </div>
                     </div>
+
+                    {/* Registration window info if NOT_STARTED */}
+                    {event.registrationState === 'NOT_STARTED' && (
+                      <div className="p-2.5 bg-amber-950/40 border border-amber-800/50 rounded-xl text-[11px] text-amber-300 font-medium">
+                        Registration starts on {event.registrationStartDate}
+                      </div>
+                    )}
 
                     {/* Eligibility Badge */}
                     <div className="flex items-center justify-between text-[11px] pt-1">

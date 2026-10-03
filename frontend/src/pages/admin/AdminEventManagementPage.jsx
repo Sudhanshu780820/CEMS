@@ -92,7 +92,13 @@ export default function AdminEventManagementPage() {
                       <span className="text-[10px] font-bold text-indigo-300 px-2 py-0.5 rounded bg-indigo-950 border border-indigo-800/60">
                         {evt.category}
                       </span>
-                      <Badge variant="default" size="sm">{evt.status}</Badge>
+                      {evt.hasVenueConflict || evt.status === 'PENDING_APPROVAL' ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-700/60">
+                          VENUE CONFLICT
+                        </span>
+                      ) : (
+                        <Badge variant="default" size="sm">{evt.status}</Badge>
+                      )}
                       <span className="text-xs text-slate-400">By: {evt.organizer?.name}</span>
                     </div>
 

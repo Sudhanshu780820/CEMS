@@ -31,6 +31,14 @@ export default function StudentDashboard() {
   const [selectedEventForScan, setSelectedEventForScan] = useState(null);
   const navigate = useNavigate();
 
+  const isCompletedEvent = (e) => {
+    if (e.status === 'COMPLETED' || e.status === 'CANCELLED') return true;
+    if (!e.eventDate) return false;
+    const now = new Date();
+    const eventEnd = new Date(`${e.eventDate}T${e.endTime || '23:59:59'}`);
+    return eventEnd < now;
+  };
+
   const loadDashboardData = async () => {
     setLoading(true);
     try {
@@ -41,7 +49,8 @@ export default function StudentDashboard() {
       ]);
       setStats(statsRes.data);
       setRegistrations(regRes.data || []);
-      setUpcomingEvents(eventsRes.data?.slice(0, 3) || []);
+      const upcoming = (eventsRes.data || []).filter((e) => !isCompletedEvent(e));
+      setUpcomingEvents(upcoming.slice(0, 3));
     } catch (err) {
       console.error('Failed to load student dashboard:', err);
     } finally {

@@ -17,7 +17,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -49,6 +51,16 @@ public class EventController {
             Authentication authentication) {
         String email = authentication != null ? authentication.getName() : null;
         return ResponseEntity.ok(eventService.getEventById(id, email));
+    }
+
+    @GetMapping("/events/check-conflict")
+    public ResponseEntity<Map<String, Object>> checkConflict(
+            @RequestParam Long venueId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate eventDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime startTime,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime endTime,
+            @RequestParam(required = false) Long excludeEventId) {
+        return ResponseEntity.ok(eventService.checkVenueConflict(venueId, eventDate, startTime, endTime, excludeEventId));
     }
 
     // Organizer Endpoints

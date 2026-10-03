@@ -35,7 +35,13 @@ public class EventResponse {
     private String registrationStatus;
     private boolean isRegistrationOpen;
     private boolean isFull;
-    private String actionStatus; // "REGISTER NOW", "REGISTERED", "FULL", "REGISTRATION CLOSED", "NOT ELIGIBLE"
+    private String actionStatus; // "REGISTER NOW", "REGISTERED", "FULL", "REGISTRATION CLOSED", "NOT ELIGIBLE", "REGISTRATION NOT STARTED"
+    private String registrationState; // "NOT_STARTED", "OPEN", "CLOSED"
+
+    // Venue conflict details
+    private boolean hasVenueConflict;
+    private ConflictingEventSummary conflictingEvent;
+    private String conflictNotes;
 
     public EventResponse() {}
 
@@ -126,4 +132,59 @@ public class EventResponse {
 
     public String getActionStatus() { return actionStatus; }
     public void setActionStatus(String actionStatus) { this.actionStatus = actionStatus; }
+
+    public String getRegistrationState() { return registrationState; }
+    public void setRegistrationState(String registrationState) { this.registrationState = registrationState; }
+
+    public boolean isHasVenueConflict() { return hasVenueConflict; }
+    public void setHasVenueConflict(boolean hasVenueConflict) { this.hasVenueConflict = hasVenueConflict; }
+
+    public ConflictingEventSummary getConflictingEvent() { return conflictingEvent; }
+    public void setConflictingEvent(ConflictingEventSummary conflictingEvent) { this.conflictingEvent = conflictingEvent; }
+
+    public String getConflictNotes() { return conflictNotes; }
+    public void setConflictNotes(String conflictNotes) { this.conflictNotes = conflictNotes; }
+
+    public static class ConflictingEventSummary {
+        private Long id;
+        private String title;
+        private String venueName;
+        private LocalDate eventDate;
+        private LocalTime startTime;
+        private LocalTime endTime;
+        private String organizerName;
+
+        public ConflictingEventSummary() {}
+
+        public ConflictingEventSummary(Long id, String title, String venueName, LocalDate eventDate, LocalTime startTime, LocalTime endTime, String organizerName) {
+            this.id = id;
+            this.title = title;
+            this.venueName = venueName;
+            this.eventDate = eventDate;
+            this.startTime = startTime;
+            this.endTime = endTime;
+            this.organizerName = organizerName;
+        }
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+
+        public String getVenueName() { return venueName; }
+        public void setVenueName(String venueName) { this.venueName = venueName; }
+
+        public LocalDate getEventDate() { return eventDate; }
+        public void setEventDate(LocalDate eventDate) { this.eventDate = eventDate; }
+
+        public LocalTime getStartTime() { return startTime; }
+        public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
+
+        public LocalTime getEndTime() { return endTime; }
+        public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
+
+        public String getOrganizerName() { return organizerName; }
+        public void setOrganizerName(String organizerName) { this.organizerName = organizerName; }
+    }
 }

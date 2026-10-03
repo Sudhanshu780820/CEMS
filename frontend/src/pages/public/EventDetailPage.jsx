@@ -137,8 +137,17 @@ export default function EventDetailPage() {
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-950/90 text-indigo-300 backdrop-blur-md border border-indigo-500/30">
                 {event.category}
               </span>
-              <Badge variant="default" size="md">
-                {event.status}
+              <Badge
+                variant={
+                  event.status === 'COMPLETED' ? 'default' :
+                  event.registrationState === 'OPEN' ? 'success' :
+                  event.registrationState === 'NOT_STARTED' ? 'warning' : 'danger'
+                }
+                size="md"
+              >
+                {event.status === 'COMPLETED' ? 'COMPLETED' :
+                 event.registrationState === 'NOT_STARTED' ? 'REGISTRATION NOT STARTED' :
+                 event.registrationState === 'OPEN' ? 'REGISTRATION OPEN' : 'REGISTRATION CLOSED'}
               </Badge>
             </div>
           </div>
@@ -341,16 +350,30 @@ export default function EventDetailPage() {
                       </Button>
                     </div>
                   ) : !event.eligible ? (
-                    <Button variant="secondary" className="w-full" disabled>
+                    <Button variant="secondary" className="w-full cursor-not-allowed opacity-75" disabled>
                       Not Eligible for Your Branch/Year
                     </Button>
+                  ) : event.registrationState === 'NOT_STARTED' ? (
+                    <div className="space-y-2">
+                      <Button variant="secondary" className="w-full cursor-not-allowed opacity-75" disabled>
+                        Registration Not Started
+                      </Button>
+                      <p className="text-[11px] text-amber-400 text-center font-medium">
+                        Registration starts on {event.registrationStartDate}
+                      </p>
+                    </div>
+                  ) : event.registrationState === 'CLOSED' || !event.registrationOpen ? (
+                    <div className="space-y-2">
+                      <Button variant="secondary" className="w-full cursor-not-allowed opacity-75" disabled>
+                        Registration Closed
+                      </Button>
+                      <p className="text-[11px] text-rose-400 text-center font-medium">
+                        Registration ended on {event.registrationEndDate}
+                      </p>
+                    </div>
                   ) : event.remainingSeats <= 0 ? (
-                    <Button variant="secondary" className="w-full" disabled>
+                    <Button variant="secondary" className="w-full cursor-not-allowed opacity-75" disabled>
                       Event at Full Capacity
-                    </Button>
-                  ) : !event.registrationOpen ? (
-                    <Button variant="secondary" className="w-full" disabled>
-                      Registration Closed
                     </Button>
                   ) : (
                     <Button

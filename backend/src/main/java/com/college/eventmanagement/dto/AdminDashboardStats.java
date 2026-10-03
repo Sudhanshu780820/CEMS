@@ -3,6 +3,7 @@ package com.college.eventmanagement.dto;
 public class AdminDashboardStats {
     private long totalStudents;
     private long pendingStudentApprovals;
+    private long pendingEventApprovals;
     private long approvedStudents;
     private long totalEvents;
     private long upcomingEvents;
@@ -12,9 +13,10 @@ public class AdminDashboardStats {
 
     public AdminDashboardStats() {}
 
-    public AdminDashboardStats(long totalStudents, long pendingStudentApprovals, long approvedStudents, long totalEvents, long upcomingEvents, long totalOrganizers, long totalRegistrations, double overallAttendanceRate) {
+    public AdminDashboardStats(long totalStudents, long pendingStudentApprovals, long pendingEventApprovals, long approvedStudents, long totalEvents, long upcomingEvents, long totalOrganizers, long totalRegistrations, double overallAttendanceRate) {
         this.totalStudents = totalStudents;
         this.pendingStudentApprovals = pendingStudentApprovals;
+        this.pendingEventApprovals = pendingEventApprovals;
         this.approvedStudents = approvedStudents;
         this.totalEvents = totalEvents;
         this.upcomingEvents = upcomingEvents;
@@ -28,6 +30,9 @@ public class AdminDashboardStats {
 
     public long getPendingStudentApprovals() { return pendingStudentApprovals; }
     public void setPendingStudentApprovals(long pendingStudentApprovals) { this.pendingStudentApprovals = pendingStudentApprovals; }
+
+    public long getPendingEventApprovals() { return pendingEventApprovals; }
+    public void setPendingEventApprovals(long pendingEventApprovals) { this.pendingEventApprovals = pendingEventApprovals; }
 
     public long getApprovedStudents() { return approvedStudents; }
     public void setApprovedStudents(long approvedStudents) { this.approvedStudents = approvedStudents; }

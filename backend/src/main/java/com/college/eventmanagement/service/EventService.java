@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -68,7 +69,15 @@ public class EventService {
             throw new BadRequestException("Selected venue is currently inactive.");
         }
 
-        validateEventConstraints(request, venue, null);
+        validateBasicEventConstraints(request, venue);
+
+        List<Event> conflicts = eventRepository.findConflictingEvents(
+                venue.getId(),
+                request.getEventDate(),
+                request.getStartTime(),
+                request.getEndTime(),
+                null
+        );
 
         Event event = new Event();
         event.setTitle(request.getTitle().trim());
@@ -87,7 +96,40 @@ public class EventService {
         event.setEligibleAcademicYears(cleanCommaSeparated(request.getEligibleAcademicYears()));
         event.setEligibleSections(cleanCommaSeparated(request.getEligibleSections()));
         event.setEventImageUrl(request.getEventImageUrl());
-        event.setStatus(request.getStatus() != null ? request.getStatus() : EventStatus.PUBLISHED);
+
+        if (!conflicts.isEmpty()) {
+            Event conflict = conflicts.get(0);
+            event.setStatus(EventStatus.PENDING_APPROVAL);
+            event.setHasVenueConflict(true);
+            event.setConflictingEvent(conflict);
+            event.setConflictNotes("Venue conflict with '" + conflict.getTitle() + "' at " + venue.getName()
+                    + " (" + conflict.getStartTime() + " - " + conflict.getEndTime() + ")");
+
+            // In-app notification for organizer
+            notificationService.createNotification(
+                    organizer.getUser(),
+                    "Event Submitted for Approval (Venue Conflict)",
+                    "Venue conflict detected. This event has been submitted for admin approval because the venue is already booked during this time.",
+                    NotificationType.GENERAL
+            );
+
+            // In-app notification for administrators
+            List<User> admins = userRepository.findByRole(Role.ROLE_ADMIN);
+            for (User admin : admins) {
+                notificationService.createNotification(
+                        admin,
+                        "Pending Event Approval: Venue Conflict",
+                        "New event '" + event.getTitle() + "' requested for " + venue.getName() + " on "
+                                + event.getEventDate() + " has a venue conflict and requires administrative review.",
+                        NotificationType.EVENT_UPDATE
+                );
+            }
+        } else {
+            event.setStatus(request.getStatus() != null ? request.getStatus() : EventStatus.PUBLISHED);
+            event.setHasVenueConflict(false);
+            event.setConflictingEvent(null);
+            event.setConflictNotes(null);
+        }
 
         event = eventRepository.save(event);
         return mapToEventResponse(event, null);
@@ -109,7 +151,15 @@ public class EventService {
         Venue venue = venueRepository.findById(request.getVenueId())
                 .orElseThrow(() -> new ResourceNotFoundException("Venue not found with id: " + request.getVenueId()));
 
-        validateEventConstraints(request, venue, eventId);
+        validateBasicEventConstraints(request, venue);
+
+        List<Event> conflicts = eventRepository.findConflictingEvents(
+                venue.getId(),
+                request.getEventDate(),
+                request.getStartTime(),
+                request.getEndTime(),
+                eventId
+        );
 
         boolean venueOrTimeChanged = !event.getVenue().getId().equals(venue.getId())
                 || !event.getEventDate().equals(request.getEventDate())
@@ -132,20 +182,54 @@ public class EventService {
         if (request.getEventImageUrl() != null) {
             event.setEventImageUrl(request.getEventImageUrl());
         }
-        if (request.getStatus() != null) {
-            event.setStatus(request.getStatus());
+
+        if (!conflicts.isEmpty()) {
+            Event conflict = conflicts.get(0);
+            event.setStatus(EventStatus.PENDING_APPROVAL);
+            event.setHasVenueConflict(true);
+            event.setConflictingEvent(conflict);
+            event.setConflictNotes("Venue conflict with '" + conflict.getTitle() + "' at " + venue.getName()
+                    + " (" + conflict.getStartTime() + " - " + conflict.getEndTime() + ")");
+
+            // In-app notification for organizer
+            notificationService.createNotification(
+                    event.getOrganizer().getUser(),
+                    "Event Update Awaiting Admin Approval",
+                    "Venue conflict detected. Your event update has been submitted for admin approval because the venue is already booked during this time.",
+                    NotificationType.GENERAL
+            );
+
+            // In-app notification for administrators
+            List<User> admins = userRepository.findByRole(Role.ROLE_ADMIN);
+            for (User admin : admins) {
+                notificationService.createNotification(
+                        admin,
+                        "Pending Event Approval: Rescheduled Venue Conflict",
+                        "Event '" + event.getTitle() + "' was rescheduled with a venue conflict at " + venue.getName()
+                                + " on " + event.getEventDate() + " and requires administrative review.",
+                        NotificationType.EVENT_UPDATE
+                );
+            }
+        } else {
+            if (event.getStatus() == EventStatus.PENDING_APPROVAL && event.isHasVenueConflict()) {
+                event.setStatus(EventStatus.PUBLISHED);
+            } else if (request.getStatus() != null) {
+                event.setStatus(request.getStatus());
+            }
+            event.setHasVenueConflict(false);
+            event.setConflictingEvent(null);
+            event.setConflictNotes(null);
+
+            // Notify registered participants if schedule changed and event remains published
+            if (venueOrTimeChanged && event.getStatus() == EventStatus.PUBLISHED) {
+                notifyParticipants(event, "Event Schedule/Venue Updated",
+                        "The schedule or venue for '" + event.getTitle() + "' has been updated. New date: "
+                        + event.getEventDate() + " at " + event.getStartTime() + " in " + event.getVenue().getName(),
+                        NotificationType.EVENT_UPDATE);
+            }
         }
 
         event = eventRepository.save(event);
-
-        // Notify registered participants if schedule changed
-        if (venueOrTimeChanged) {
-            notifyParticipants(event, "Event Schedule/Venue Updated",
-                    "The schedule or venue for '" + event.getTitle() + "' has been updated. New date: "
-                    + event.getEventDate() + " at " + event.getStartTime() + " in " + event.getVenue().getName(),
-                    NotificationType.EVENT_UPDATE);
-        }
-
         return mapToEventResponse(event, null);
     }
 
@@ -174,20 +258,38 @@ public class EventService {
     public List<EventResponse> getEventsForDiscovery(String userEmail, String query, String category,
                                                      LocalDate startDate, LocalDate endDate) {
         Student student = null;
+        User user = null;
         if (userEmail != null) {
-            User user = userRepository.findByEmail(userEmail).orElse(null);
+            user = userRepository.findByEmail(userEmail).orElse(null);
             if (user != null && user.getRole() == Role.ROLE_STUDENT) {
                 student = studentRepository.findByUserId(user.getId()).orElse(null);
             }
         }
 
-        List<Event> events = eventRepository.searchEvents(
-                EventStatus.PUBLISHED,
-                (category != null && !category.isBlank()) ? category.trim() : null,
-                startDate,
-                endDate,
-                (query != null && !query.isBlank()) ? query.trim() : null
-        );
+        LocalDate today = LocalDate.now();
+        java.time.LocalTime currentTime = java.time.LocalTime.now();
+
+        List<Event> events;
+        // Admins can search across all institutional events including past/completed
+        if (user != null && user.getRole() == Role.ROLE_ADMIN) {
+            events = eventRepository.searchEvents(
+                    null,
+                    (category != null && !category.isBlank()) ? category.trim() : null,
+                    startDate,
+                    endDate,
+                    (query != null && !query.isBlank()) ? query.trim() : null
+            );
+        } else {
+            // Students & unauthenticated public: strictly upcoming published events whose end time hasn't passed!
+            events = eventRepository.searchUpcomingPublishedEvents(
+                    today,
+                    currentTime,
+                    (category != null && !category.isBlank()) ? category.trim() : null,
+                    startDate,
+                    endDate,
+                    (query != null && !query.isBlank()) ? query.trim() : null
+            );
+        }
 
         final Student finalStudent = student;
         return events.stream()
@@ -266,7 +368,7 @@ public class EventService {
         );
     }
 
-    private void validateEventConstraints(EventCreateRequest request, Venue venue, Long existingEventId) {
+    private void validateBasicEventConstraints(EventCreateRequest request, Venue venue) {
         if (!request.getStartTime().isBefore(request.getEndTime())) {
             throw new BadRequestException("Event start time (" + request.getStartTime() + ") must be before end time (" + request.getEndTime() + ").");
         }
@@ -282,18 +384,84 @@ public class EventService {
         if (request.getMaxCapacity() > venue.getCapacity()) {
             throw new BadRequestException("Maximum capacity (" + request.getMaxCapacity() + ") cannot exceed venue capacity (" + venue.getCapacity() + ") for " + venue.getName() + ".");
         }
+    }
 
-        long overlaps = eventRepository.countVenueOverlaps(
-                venue.getId(),
-                request.getEventDate(),
-                request.getStartTime(),
-                request.getEndTime(),
-                existingEventId
+    @Transactional
+    public EventResponse approveEvent(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+
+        event.setStatus(EventStatus.PUBLISHED);
+        event.setHasVenueConflict(false);
+        event = eventRepository.save(event);
+
+        notificationService.createNotification(
+                event.getOrganizer().getUser(),
+                "Event Approved by Administrator",
+                "Your event '" + event.getTitle() + "' scheduled on " + event.getEventDate() + " has been approved and is now published.",
+                NotificationType.GENERAL
         );
 
-        if (overlaps > 0) {
-            throw new ConflictException("This venue is already booked during the selected time.");
+        return mapToEventResponse(event, null);
+    }
+
+    @Transactional
+    public EventResponse rejectEvent(Long eventId, String reason) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+
+        event.setStatus(EventStatus.REJECTED);
+        if (reason != null && !reason.isBlank()) {
+            event.setConflictNotes("Rejected by admin: " + reason.trim());
         }
+        event = eventRepository.save(event);
+
+        notificationService.createNotification(
+                event.getOrganizer().getUser(),
+                "Event Request Rejected",
+                "Your event '" + event.getTitle() + "' was rejected by the administration. Reason: "
+                        + (reason != null ? reason : "Administrative decision / Venue conflict."),
+                NotificationType.EVENT_CANCELLATION
+        );
+
+        return mapToEventResponse(event, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventResponse> getPendingEvents() {
+        return eventRepository.findByStatusOrderByCreatedAtDesc(EventStatus.PENDING_APPROVAL).stream()
+                .map(e -> mapToEventResponse(e, null))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> checkVenueConflict(Long venueId, LocalDate eventDate, LocalTime startTime, LocalTime endTime, Long excludeEventId) {
+        Map<String, Object> result = new HashMap<>();
+        if (venueId == null || eventDate == null || startTime == null || endTime == null) {
+            result.put("hasConflict", false);
+            return result;
+        }
+
+        List<Event> conflicts = eventRepository.findConflictingEvents(venueId, eventDate, startTime, endTime, excludeEventId);
+        if (conflicts.isEmpty()) {
+            result.put("hasConflict", false);
+        } else {
+            Event c = conflicts.get(0);
+            result.put("hasConflict", true);
+            EventResponse.ConflictingEventSummary summary = new EventResponse.ConflictingEventSummary(
+                    c.getId(),
+                    c.getTitle(),
+                    c.getVenue().getName(),
+                    c.getEventDate(),
+                    c.getStartTime(),
+                    c.getEndTime(),
+                    c.getOrganizer().getName()
+            );
+            result.put("conflictingEvent", summary);
+            result.put("warningMessage", "Venue conflict: another event ('" + c.getTitle() + "') is already scheduled at "
+                    + c.getVenue().getName() + " during this time slot (" + c.getStartTime() + " - " + c.getEndTime() + ").");
+        }
+        return result;
     }
 
     public EventResponse mapToEventResponse(Event event, Student student) {
@@ -334,10 +502,41 @@ public class EventService {
         r.setAttendanceActive(event.isAttendanceActive());
         r.setAttendanceToken(event.getAttendanceToken());
 
+        // Venue conflict mapping
+        r.setHasVenueConflict(event.isHasVenueConflict());
+        r.setConflictNotes(event.getConflictNotes());
+        if (event.getConflictingEvent() != null) {
+            Event c = event.getConflictingEvent();
+            EventResponse.ConflictingEventSummary summary = new EventResponse.ConflictingEventSummary(
+                    c.getId(),
+                    c.getTitle(),
+                    c.getVenue().getName(),
+                    c.getEventDate(),
+                    c.getStartTime(),
+                    c.getEndTime(),
+                    c.getOrganizer().getName()
+            );
+            r.setConflictingEvent(summary);
+        }
+
         LocalDate today = LocalDate.now();
-        boolean isOpen = (today.isEqual(event.getRegistrationStartDate()) || today.isAfter(event.getRegistrationStartDate()))
-                && (today.isEqual(event.getRegistrationEndDate()) || today.isBefore(event.getRegistrationEndDate()))
-                && event.getStatus() == EventStatus.PUBLISHED;
+        LocalTime now = LocalTime.now();
+        boolean isPast = event.getStatus() == EventStatus.COMPLETED
+                || event.getEventDate().isBefore(today)
+                || (event.getEventDate().isEqual(today) && event.getEndTime().isBefore(now));
+
+        // Distinct registration state calculation: NOT_STARTED, OPEN, CLOSED
+        String regState;
+        if (today.isBefore(event.getRegistrationStartDate())) {
+            regState = "NOT_STARTED";
+        } else if (today.isAfter(event.getRegistrationEndDate())) {
+            regState = "CLOSED";
+        } else {
+            regState = "OPEN";
+        }
+        r.setRegistrationState(regState);
+
+        boolean isOpen = "OPEN".equals(regState) && event.getStatus() == EventStatus.PUBLISHED && !isPast;
         r.setRegistrationOpen(isOpen);
         r.setFull(remaining <= 0);
 
@@ -356,13 +555,19 @@ public class EventService {
                 r.setActionStatus("REGISTERED");
             } else if (event.getStatus() == EventStatus.CANCELLED) {
                 r.setActionStatus("CANCELLED");
-            } else if (event.getStatus() == EventStatus.COMPLETED || event.getEventDate().isBefore(today)) {
+            } else if (event.getStatus() == EventStatus.PENDING_APPROVAL) {
+                r.setActionStatus("PENDING APPROVAL");
+            } else if (event.getStatus() == EventStatus.REJECTED) {
+                r.setActionStatus("REJECTED");
+            } else if (isPast) {
                 r.setActionStatus("COMPLETED");
             } else if (!eligible) {
                 r.setActionStatus("NOT ELIGIBLE");
             } else if (remaining <= 0) {
                 r.setActionStatus("FULL");
-            } else if (!isOpen) {
+            } else if ("NOT_STARTED".equals(regState)) {
+                r.setActionStatus("REGISTRATION NOT STARTED");
+            } else if ("CLOSED".equals(regState)) {
                 r.setActionStatus("REGISTRATION CLOSED");
             } else {
                 r.setActionStatus("REGISTER NOW");
@@ -370,9 +575,17 @@ public class EventService {
         } else {
             if (event.getStatus() == EventStatus.CANCELLED) {
                 r.setActionStatus("CANCELLED");
+            } else if (event.getStatus() == EventStatus.PENDING_APPROVAL) {
+                r.setActionStatus("PENDING APPROVAL");
+            } else if (event.getStatus() == EventStatus.REJECTED) {
+                r.setActionStatus("REJECTED");
+            } else if (isPast) {
+                r.setActionStatus("COMPLETED");
             } else if (remaining <= 0) {
                 r.setActionStatus("FULL");
-            } else if (!isOpen) {
+            } else if ("NOT_STARTED".equals(regState)) {
+                r.setActionStatus("REGISTRATION NOT STARTED");
+            } else if ("CLOSED".equals(regState)) {
                 r.setActionStatus("REGISTRATION CLOSED");
             } else {
                 r.setActionStatus("REGISTER NOW");

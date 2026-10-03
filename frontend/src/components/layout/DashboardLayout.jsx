@@ -50,8 +50,12 @@ export default function DashboardLayout({ children }) {
       setUnreadCount(unreadRes.data?.unreadCount || 0);
 
       if (isAdmin) {
-        const pendingRes = await api.get('/admin/students/pending');
-        setPendingStudentsCount(pendingRes.data?.length || 0);
+        const [pendingStudentsRes, pendingEventsRes] = await Promise.all([
+          api.get('/admin/students/pending').catch(() => ({ data: [] })),
+          api.get('/admin/events/pending').catch(() => ({ data: [] }))
+        ]);
+        const totalPending = (pendingStudentsRes.data?.length || 0) + (pendingEventsRes.data?.length || 0);
+        setPendingStudentsCount(totalPending);
       }
     } catch (err) {
       console.warn('Could not fetch notifications:', err);
@@ -147,8 +151,8 @@ export default function DashboardLayout({ children }) {
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0 md:static ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:shrink-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         {/* Brand Header */}
@@ -221,17 +225,6 @@ export default function DashboardLayout({ children }) {
             );
           })}
         </nav>
-
-        {/* Logout Footer */}
-        <div className="p-3 border-t border-slate-800">
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-4 h-4 shrink-0" />
-            <span>Sign Out</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content Area */}
@@ -336,6 +329,16 @@ export default function DashboardLayout({ children }) {
             >
               View Public Events
             </Link>
+
+            {/* Top-Right Sign Out Button */}
+            <button
+              onClick={logout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 border border-rose-900/50 transition-all cursor-pointer shadow-sm shadow-rose-950/20"
+              title="Sign Out of CampusEvents"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
           </div>
         </header>
 

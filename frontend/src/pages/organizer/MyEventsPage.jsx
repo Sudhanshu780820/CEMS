@@ -10,7 +10,9 @@ import {
   Trash2,
   CalendarPlus,
   Search,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
 import api from '../../api/client';
 import DashboardLayout from '../../components/layout/DashboardLayout';
@@ -108,6 +110,8 @@ export default function MyEventsPage() {
           >
             <option value="ALL">All Statuses</option>
             <option value="PUBLISHED">Published</option>
+            <option value="PENDING_APPROVAL">Pending Approval (Venue Conflict)</option>
+            <option value="REJECTED">Rejected</option>
             <option value="COMPLETED">Completed</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
@@ -137,9 +141,20 @@ export default function MyEventsPage() {
                       <span className="text-[10px] font-bold text-indigo-300 px-2 py-0.5 rounded bg-indigo-950 border border-indigo-800/60">
                         {evt.category}
                       </span>
-                      <Badge variant="default" size="sm">
-                        {evt.status}
-                      </Badge>
+                      {evt.status === 'PENDING_APPROVAL' ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-950 text-amber-300 border border-amber-600/60 flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                          PENDING APPROVAL - VENUE CONFLICT
+                        </span>
+                      ) : evt.status === 'REJECTED' ? (
+                        <Badge variant="danger" size="sm">
+                          REJECTED
+                        </Badge>
+                      ) : (
+                        <Badge variant="default" size="sm">
+                          {evt.status}
+                        </Badge>
+                      )}
                       {evt.attendanceActive && (
                         <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-700/60 px-2 py-0.5 rounded-full animate-pulse">
                           QR Session Open
@@ -148,6 +163,25 @@ export default function MyEventsPage() {
                     </div>
 
                     <h3 className="text-base font-bold text-white truncate">{evt.title}</h3>
+
+                    {evt.status === 'PENDING_APPROVAL' && (
+                      <div className="p-3 bg-amber-950/40 border border-amber-700/50 rounded-xl text-xs text-amber-200/90 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-amber-300">Awaiting Admin Approval (Venue Conflict)</p>
+                          <p className="text-[11px] text-amber-200/80 mt-0.5">
+                            An administrator must review and resolve the venue scheduling conflict before this event is published and visible to students.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {evt.status === 'REJECTED' && evt.conflictNotes && (
+                      <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-xs text-rose-300 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                        <p>{evt.conflictNotes}</p>
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
                       <div className="flex items-center gap-1.5">

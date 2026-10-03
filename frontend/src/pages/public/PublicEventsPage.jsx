@@ -49,8 +49,18 @@ export default function PublicEventsPage() {
   const categories = ['ALL', 'Technical', 'Workshop', 'Cultural', 'Seminar', 'Sports'];
   const branches = ['ALL', 'CSE', 'IT', 'AI/ML', 'ECE', 'ME', 'Civil'];
 
+  const isCompletedEvent = (e) => {
+    if (e.status === 'COMPLETED' || e.status === 'CANCELLED') return true;
+    if (!e.eventDate) return false;
+    const now = new Date();
+    const eventEnd = new Date(`${e.eventDate}T${e.endTime || '23:59:59'}`);
+    return eventEnd < now;
+  };
+
   // Client-side filtering & sorting
   const filteredEvents = events.filter((e) => {
+    if (isCompletedEvent(e)) return false;
+
     const matchesSearch = !searchQuery.trim() ||
       e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -197,7 +207,14 @@ export default function PublicEventsPage() {
 
                     {/* Action Status Top Right */}
                     <div className="absolute top-3 right-3">
-                      <Badge variant="default" size="sm">
+                      <Badge
+                        variant={
+                          event.actionStatus === 'REGISTER NOW' ? 'success' :
+                          event.actionStatus === 'REGISTRATION NOT STARTED' ? 'warning' :
+                          event.actionStatus === 'ALREADY REGISTERED' ? 'purple' : 'default'
+                        }
+                        size="sm"
+                      >
                         {event.actionStatus || (isFull ? 'FULL' : 'REGISTER NOW')}
                       </Badge>
                     </div>

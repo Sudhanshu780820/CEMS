@@ -3,6 +3,7 @@ package com.college.eventmanagement.controller;
 import com.college.eventmanagement.dto.*;
 import com.college.eventmanagement.entity.ApprovalStatus;
 import com.college.eventmanagement.service.AdminService;
+import com.college.eventmanagement.service.EventService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,9 +18,11 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminService adminService;
+    private final EventService eventService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, EventService eventService) {
         this.adminService = adminService;
+        this.eventService = eventService;
     }
 
     @GetMapping("/dashboard")
@@ -81,5 +84,23 @@ public class AdminController {
     @GetMapping("/reports")
     public ResponseEntity<AdminReportsResponse> getReports() {
         return ResponseEntity.ok(adminService.getReports());
+    }
+
+    @GetMapping("/events/pending")
+    public ResponseEntity<List<EventResponse>> getPendingEvents() {
+        return ResponseEntity.ok(eventService.getPendingEvents());
+    }
+
+    @PutMapping("/events/{id}/approve")
+    public ResponseEntity<EventResponse> approveEvent(@PathVariable Long id) {
+        return ResponseEntity.ok(eventService.approveEvent(id));
+    }
+
+    @PutMapping("/events/{id}/reject")
+    public ResponseEntity<EventResponse> rejectEvent(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.get("rejectionReason") : "Administrative rejection";
+        return ResponseEntity.ok(eventService.rejectEvent(id, reason));
     }
 }

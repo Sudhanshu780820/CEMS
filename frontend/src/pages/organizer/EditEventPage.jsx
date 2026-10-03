@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, AlertTriangle } from 'lucide-react';
 import api from '../../api/client';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import Card from '../../components/common/Card';
@@ -18,6 +18,7 @@ export default function EditEventPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [conflictWarning, setConflictWarning] = useState(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -74,6 +75,38 @@ export default function EditEventPage() {
     loadData();
   }, [id]);
 
+  useEffect(() => {
+    if (!formData.venueId || !formData.eventDate || !formData.startTime || !formData.endTime) {
+      setConflictWarning(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const formattedStart = formData.startTime.length === 5 ? `${formData.startTime}:00` : formData.startTime;
+        const formattedEnd = formData.endTime.length === 5 ? `${formData.endTime}:00` : formData.endTime;
+        const res = await api.get('/events/check-conflict', {
+          params: {
+            venueId: parseInt(formData.venueId),
+            eventDate: formData.eventDate,
+            startTime: formattedStart,
+            endTime: formattedEnd,
+            excludeEventId: parseInt(id),
+          }
+        });
+        if (res.data?.hasConflict) {
+          setConflictWarning(res.data);
+        } else {
+          setConflictWarning(null);
+        }
+      } catch (err) {
+        // Ignore check conflict errors
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [formData.venueId, formData.eventDate, formData.startTime, formData.endTime, id]);
+
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -92,8 +125,12 @@ export default function EditEventPage() {
         endTime: formData.endTime.length === 5 ? `${formData.endTime}:00` : formData.endTime,
       };
 
-      await api.put(`/organizer/events/${id}`, payload);
-      toast.success('Event updated successfully!');
+      const res = await api.put(`/organizer/events/${id}`, payload);
+      if (res.data?.hasVenueConflict || res.data?.status === 'PENDING_APPROVAL') {
+        toast.warning('Event updated with a venue conflict. It has been routed to Admin for approval.');
+      } else {
+        toast.success('Event updated successfully!');
+      }
       navigate('/organizer/events');
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to update event.';
@@ -248,6 +285,27 @@ export default function EditEventPage() {
                 required
               />
             </div>
+
+            {/* Live Venue Conflict Warning Banner */}
+            {conflictWarning && conflictWarning.hasConflict && (
+              <div className="p-4 bg-amber-950/60 border border-amber-500/50 rounded-2xl space-y-2 mt-2">
+                <div className="flex items-center gap-2 text-amber-300 font-semibold text-xs sm:text-sm">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Venue Scheduling Conflict Detected</span>
+                </div>
+                <p className="text-xs text-amber-200/90 leading-relaxed">
+                  Warning: The selected venue is already booked for another event on this date and time slot:
+                </p>
+                <div className="p-3 bg-slate-950/80 border border-amber-900/60 rounded-xl text-xs space-y-1 text-slate-300">
+                  <p><strong className="text-white">Conflicting Event:</strong> {conflictWarning.conflictingEvent?.title}</p>
+                  <p><strong className="text-white">Time Slot:</strong> {conflictWarning.conflictingEvent?.startTime} - {conflictWarning.conflictingEvent?.endTime}</p>
+                  <p><strong className="text-white">Organized By:</strong> {conflictWarning.conflictingEvent?.organizerName}</p>
+                </div>
+                <p className="text-[11px] text-amber-300/80 font-medium">
+                  You may still submit this event, but it will require Admin Approval before being published.
+                </p>
+              </div>
+            )}
 
             <Input
               label="Eligible Branches (Comma-separated or empty for ALL)"

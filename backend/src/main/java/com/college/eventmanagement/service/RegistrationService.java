@@ -65,9 +65,13 @@ public class RegistrationService {
 
         // 3. Verify registration window
         LocalDate today = LocalDate.now();
-        if (today.isBefore(event.getRegistrationStartDate()) || today.isAfter(event.getRegistrationEndDate())) {
-            throw new BadRequestException("Registration period is closed. Registration is open from "
-                    + event.getRegistrationStartDate() + " to " + event.getRegistrationEndDate() + ".");
+        if (today.isBefore(event.getRegistrationStartDate())) {
+            throw new BadRequestException("Registration has not started yet. Registration opens on "
+                    + event.getRegistrationStartDate() + ".");
+        }
+        if (today.isAfter(event.getRegistrationEndDate())) {
+            throw new BadRequestException("Registration is closed. Registration ended on "
+                    + event.getRegistrationEndDate() + ".");
         }
 
         // 4. Verify student eligibility (Double-checked on backend!)
@@ -214,7 +218,7 @@ public class RegistrationService {
         long registered = registrationRepository.countByStudentAndStatus(student, RegistrationStatus.REGISTERED)
                 + registrationRepository.countByStudentAndStatus(student, RegistrationStatus.ATTENDED);
         long attended = attendanceRepository.countByStudentAndStatus(student, AttendanceStatus.PRESENT);
-        long available = eventRepository.findUpcomingPublishedEvents(LocalDate.now()).size();
+        long available = eventRepository.findUpcomingPublishedEvents(LocalDate.now(), java.time.LocalTime.now()).size();
 
         return new StudentDashboardStats(registered, attended, available);
     }

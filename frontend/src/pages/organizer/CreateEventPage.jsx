@@ -26,6 +26,7 @@ export default function CreateEventPage() {
   const [loadingVenues, setLoadingVenues] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [conflictWarning, setConflictWarning] = useState(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -64,6 +65,37 @@ export default function CreateEventPage() {
     };
     fetchVenues();
   }, []);
+
+  useEffect(() => {
+    if (!formData.venueId || !formData.eventDate || !formData.startTime || !formData.endTime) {
+      setConflictWarning(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const formattedStart = formData.startTime.length === 5 ? `${formData.startTime}:00` : formData.startTime;
+        const formattedEnd = formData.endTime.length === 5 ? `${formData.endTime}:00` : formData.endTime;
+        const res = await api.get('/events/check-conflict', {
+          params: {
+            venueId: parseInt(formData.venueId),
+            eventDate: formData.eventDate,
+            startTime: formattedStart,
+            endTime: formattedEnd,
+          }
+        });
+        if (res.data?.hasConflict) {
+          setConflictWarning(res.data);
+        } else {
+          setConflictWarning(null);
+        }
+      } catch (err) {
+        // Ignore real-time check errors
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [formData.venueId, formData.eventDate, formData.startTime, formData.endTime]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -130,8 +162,12 @@ export default function CreateEventPage() {
         eligibleSections: formData.eligibleSections.join(','),
       };
 
-      await api.post('/organizer/events', payload);
-      toast.success('Event successfully scheduled!');
+      const res = await api.post('/organizer/events', payload);
+      if (res.data?.hasVenueConflict || res.data?.status === 'PENDING_APPROVAL') {
+        toast.warning('Event scheduled with a venue conflict. It has been routed to Admin for approval.');
+      } else {
+        toast.success('Event successfully scheduled and published!');
+      }
       navigate('/organizer/events');
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to create event. Check schedule conflicts.';
@@ -309,6 +345,27 @@ export default function CreateEventPage() {
                 required
               />
             </div>
+
+            {/* Live Venue Conflict Warning Banner */}
+            {conflictWarning && conflictWarning.hasConflict && (
+              <div className="p-4 bg-amber-950/60 border border-amber-500/50 rounded-2xl space-y-2 mt-3">
+                <div className="flex items-center gap-2 text-amber-300 font-semibold text-xs sm:text-sm">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Venue Scheduling Conflict Detected</span>
+                </div>
+                <p className="text-xs text-amber-200/90 leading-relaxed">
+                  Warning: The selected venue <strong>{selectedVenue?.name}</strong> is already booked for another event on this date and time slot:
+                </p>
+                <div className="p-3 bg-slate-950/80 border border-amber-900/60 rounded-xl text-xs space-y-1 text-slate-300">
+                  <p><strong className="text-white">Conflicting Event:</strong> {conflictWarning.conflictingEvent?.title}</p>
+                  <p><strong className="text-white">Time Slot:</strong> {conflictWarning.conflictingEvent?.startTime} - {conflictWarning.conflictingEvent?.endTime}</p>
+                  <p><strong className="text-white">Organized By:</strong> {conflictWarning.conflictingEvent?.organizerName}</p>
+                </div>
+                <p className="text-[11px] text-amber-300/80 font-medium">
+                  You may still submit this event, but it will require Admin Approval before being published.
+                </p>
+              </div>
+            )}
           </Card>
 
           <Card className="space-y-4">

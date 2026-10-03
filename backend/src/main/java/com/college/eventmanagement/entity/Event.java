@@ -77,6 +77,16 @@ public class Event {
     @Column(name = "is_attendance_active", nullable = false)
     private boolean isAttendanceActive = false;
 
+    @Column(name = "has_venue_conflict", nullable = false)
+    private boolean hasVenueConflict = false;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "conflicting_event_id")
+    private Event conflictingEvent;
+
+    @Column(name = "conflict_notes", length = 500)
+    private String conflictNotes;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -168,4 +178,13 @@ public class Event {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public boolean isHasVenueConflict() { return hasVenueConflict; }
+    public void setHasVenueConflict(boolean hasVenueConflict) { this.hasVenueConflict = hasVenueConflict; }
+
+    public Event getConflictingEvent() { return conflictingEvent; }
+    public void setConflictingEvent(Event conflictingEvent) { this.conflictingEvent = conflictingEvent; }
+
+    public String getConflictNotes() { return conflictNotes; }
+    public void setConflictNotes(String conflictNotes) { this.conflictNotes = conflictNotes; }
 }

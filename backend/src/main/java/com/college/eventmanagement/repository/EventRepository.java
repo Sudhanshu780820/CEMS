@@ -20,15 +20,33 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     List<Event> findByStatusOrderByEventDateAscStartTimeAsc(EventStatus status);
 
-    @Query("SELECT e FROM Event e WHERE e.status = 'PUBLISHED' AND e.eventDate >= :today ORDER BY e.eventDate ASC, e.startTime ASC")
-    List<Event> findUpcomingPublishedEvents(@Param("today") LocalDate today);
+    List<Event> findByStatusOrderByCreatedAtDesc(EventStatus status);
+
+    @Query("SELECT e FROM Event e WHERE e.status = 'PUBLISHED' " +
+           "AND (e.eventDate > :today OR (e.eventDate = :today AND e.endTime > :currentTime)) " +
+           "ORDER BY e.eventDate ASC, e.startTime ASC")
+    List<Event> findUpcomingPublishedEvents(@Param("today") LocalDate today, @Param("currentTime") LocalTime currentTime);
 
     @Query("SELECT e FROM Event e WHERE e.organizer = :organizer AND e.eventDate = :today")
     List<Event> findOrganizerTodayEvents(@Param("organizer") Organizer organizer, @Param("today") LocalDate today);
 
+    @Query("SELECT e FROM Event e WHERE e.venue.id = :venueId " +
+           "AND e.eventDate = :eventDate " +
+           "AND e.status IN ('PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'ONGOING', 'PENDING_APPROVAL') " +
+           "AND (:eventId IS NULL OR e.id != :eventId) " +
+           "AND (e.startTime < :endTime AND e.endTime > :startTime) " +
+           "ORDER BY e.startTime ASC")
+    List<Event> findConflictingEvents(
+        @Param("venueId") Long venueId,
+        @Param("eventDate") LocalDate eventDate,
+        @Param("startTime") LocalTime startTime,
+        @Param("endTime") LocalTime endTime,
+        @Param("eventId") Long eventId
+    );
+
     @Query("SELECT COUNT(e) FROM Event e WHERE e.venue.id = :venueId " +
            "AND e.eventDate = :eventDate " +
-           "AND e.status NOT IN ('CANCELLED', 'DRAFT') " +
+           "AND e.status IN ('PUBLISHED', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'ONGOING', 'PENDING_APPROVAL') " +
            "AND (:eventId IS NULL OR e.id != :eventId) " +
            "AND (e.startTime < :endTime AND e.endTime > :startTime)")
     long countVenueOverlaps(
@@ -46,6 +64,23 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @Modifying
     @Query("UPDATE Event e SET e.registeredCount = e.registeredCount - 1 WHERE e.id = :eventId AND e.registeredCount > 0")
     int decrementRegisteredCount(@Param("eventId") Long eventId);
+
+    @Query("SELECT e FROM Event e WHERE " +
+           "e.status = 'PUBLISHED' AND " +
+           "(e.eventDate > :today OR (e.eventDate = :today AND e.endTime > :currentTime)) AND " +
+           "(:category IS NULL OR e.category = :category) AND " +
+           "(:startDate IS NULL OR e.eventDate >= :startDate) AND " +
+           "(:endDate IS NULL OR e.eventDate <= :endDate) AND " +
+           "(:query IS NULL OR LOWER(e.title) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(e.description) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(e.venue.name) LIKE LOWER(CONCAT('%', :query, '%'))) " +
+           "ORDER BY e.eventDate ASC, e.startTime ASC")
+    List<Event> searchUpcomingPublishedEvents(
+        @Param("today") LocalDate today,
+        @Param("currentTime") LocalTime currentTime,
+        @Param("category") String category,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate,
+        @Param("query") String query
+    );
 
     @Query("SELECT e FROM Event e WHERE " +
            "(:status IS NULL OR e.status = :status) AND " +

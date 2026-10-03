@@ -47,9 +47,10 @@ public class AdminService {
     public AdminDashboardStats getDashboardStats() {
         long totalStudents = studentRepository.count();
         long pendingStudents = studentRepository.countByApprovalStatus(ApprovalStatus.PENDING);
+        long pendingEvents = eventRepository.findByStatusOrderByCreatedAtDesc(EventStatus.PENDING_APPROVAL).size();
         long approvedStudents = studentRepository.countByApprovalStatus(ApprovalStatus.APPROVED);
         long totalEvents = eventRepository.count();
-        long upcomingEvents = eventRepository.findUpcomingPublishedEvents(LocalDate.now()).size();
+        long upcomingEvents = eventRepository.findUpcomingPublishedEvents(LocalDate.now(), java.time.LocalTime.now()).size();
         long totalOrganizers = organizerRepository.count();
         long totalRegistrations = registrationRepository.count();
 
@@ -61,6 +62,7 @@ public class AdminService {
         return new AdminDashboardStats(
                 totalStudents,
                 pendingStudents,
+                pendingEvents,
                 approvedStudents,
                 totalEvents,
                 upcomingEvents,

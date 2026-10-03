@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
+import com.college.eventmanagement.util.DateTimeUtil;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -91,7 +92,7 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message, String path, Object details) {
         Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
+        body.put("timestamp", DateTimeUtil.now());
         body.put("status", status.value());
         body.put("error", status.getReasonPhrase());
         body.put("message", message);

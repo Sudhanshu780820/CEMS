@@ -61,11 +61,18 @@ export default function OrganizerDashboard() {
       toast.success('Live attendance session started!');
       fetchDashboardData();
     } catch (err) {
-      toast.error('Failed to start attendance session');
+      toast.error(err.response?.data?.message || 'Failed to start attendance session');
     }
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const today = getLocalDateString();
   const todayEvents = events.filter((e) => e.eventDate === today);
 
   return (
@@ -156,8 +163,25 @@ export default function OrganizerDashboard() {
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-bold text-indigo-400">{evt.category}</span>
-                      <Badge variant={evt.attendanceActive ? 'success' : 'default'} size="sm">
-                        {evt.attendanceActive ? 'QR Active' : 'Attendance Closed'}
+                      <Badge
+                        variant={
+                          evt.attendanceActive
+                            ? 'success'
+                            : evt.attendanceState === 'CHECK_IN_OPEN'
+                            ? 'warning'
+                            : evt.attendanceState === 'NOT_STARTED'
+                            ? 'default'
+                            : 'danger'
+                        }
+                        size="sm"
+                      >
+                        {evt.attendanceActive
+                          ? 'QR Active'
+                          : evt.attendanceState === 'CHECK_IN_OPEN'
+                          ? 'Window Open'
+                          : evt.attendanceState === 'NOT_STARTED'
+                          ? 'Upcoming'
+                          : 'Attendance Closed'}
                       </Badge>
                     </div>
                     <h4 className="text-sm font-bold text-white">{evt.title}</h4>

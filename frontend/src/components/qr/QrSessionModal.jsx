@@ -28,7 +28,7 @@ export default function QrSessionModal({ isOpen, onClose, event, token, onSessio
       if (onSessionEnd) onSessionEnd();
       onClose();
     } catch (err) {
-      toast.error('Failed to close attendance session');
+      toast.error(err.response?.data?.message || 'Failed to close attendance session');
     } finally {
       setStopping(false);
     }

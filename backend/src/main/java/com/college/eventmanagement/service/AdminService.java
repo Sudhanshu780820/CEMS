@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import com.college.eventmanagement.util.DateTimeUtil;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -50,7 +51,7 @@ public class AdminService {
         long pendingEvents = eventRepository.findByStatusOrderByCreatedAtDesc(EventStatus.PENDING_APPROVAL).size();
         long approvedStudents = studentRepository.countByApprovalStatus(ApprovalStatus.APPROVED);
         long totalEvents = eventRepository.count();
-        long upcomingEvents = eventRepository.findUpcomingPublishedEvents(LocalDate.now(), java.time.LocalTime.now()).size();
+        long upcomingEvents = eventRepository.findUpcomingPublishedEvents(DateTimeUtil.today(), DateTimeUtil.currentTime()).size();
         long totalOrganizers = organizerRepository.count();
         long totalRegistrations = registrationRepository.count();
 

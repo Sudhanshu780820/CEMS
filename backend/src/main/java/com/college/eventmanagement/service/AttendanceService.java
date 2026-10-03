@@ -9,10 +9,14 @@ import com.college.eventmanagement.exception.BadRequestException;
 import com.college.eventmanagement.exception.ConflictException;
 import com.college.eventmanagement.exception.ResourceNotFoundException;
 import com.college.eventmanagement.repository.*;
+import com.college.eventmanagement.util.DateTimeUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +24,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class AttendanceService {
+
+    private static final Logger log = LoggerFactory.getLogger(AttendanceService.class);
 
     private final AttendanceRepository attendanceRepository;
     private final EventRepository eventRepository;
@@ -44,7 +50,7 @@ public class AttendanceService {
 
     @Transactional
     public String startAttendanceSession(Long eventId, String userEmail) {
-        return startAttendanceSession(eventId, userEmail, LocalDateTime.now());
+        return startAttendanceSession(eventId, userEmail, DateTimeUtil.now());
     }
 
     @Transactional
@@ -86,7 +92,7 @@ public class AttendanceService {
     }
 
     public boolean isAttendanceWindowOpen(Event event) {
-        return isAttendanceWindowOpen(event, LocalDateTime.now());
+        return isAttendanceWindowOpen(event, DateTimeUtil.now());
     }
 
     public boolean isAttendanceWindowOpen(Event event, LocalDateTime currentTime) {
@@ -103,7 +109,7 @@ public class AttendanceService {
     }
 
     public void validateAttendanceWindow(Event event) {
-        validateAttendanceWindow(event, LocalDateTime.now());
+        validateAttendanceWindow(event, DateTimeUtil.now());
     }
 
     public void validateAttendanceWindow(Event event, LocalDateTime currentTime) {
@@ -124,8 +130,19 @@ public class AttendanceService {
         LocalDateTime endDateTime = LocalDateTime.of(event.getEventDate(), event.getEndTime());
         LocalDateTime gracePeriodEnd = endDateTime.plusHours(24);
 
+        log.info("Attendance Window Check: eventId={}, eventDate={}, startTime={}, endTime={}, startDateTime={}, endDateTime={}, gracePeriodEnd={}, currentTime={}, zoneId={}",
+                event.getId(),
+                event.getEventDate(),
+                event.getStartTime(),
+                event.getEndTime(),
+                startDateTime,
+                endDateTime,
+                gracePeriodEnd,
+                currentTime,
+                DateTimeUtil.getZoneId());
+
         if (currentTime.isBefore(startDateTime)) {
-            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy • hh:mm a");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy • hh:mm a");
             throw new BadRequestException("Check-in has not started yet. Check-in opens at " + startDateTime.format(formatter) + ".");
         }
 
@@ -156,7 +173,7 @@ public class AttendanceService {
 
     @Transactional
     public AttendanceResponse markAttendanceViaQr(Long eventId, AttendanceMarkRequest request, String studentEmail) {
-        return markAttendanceViaQr(eventId, request, studentEmail, LocalDateTime.now());
+        return markAttendanceViaQr(eventId, request, studentEmail, DateTimeUtil.now());
     }
 
     @Transactional
@@ -231,7 +248,7 @@ public class AttendanceService {
 
     @Transactional
     public void markManualAttendance(Long eventId, ManualAttendanceRequest request, String userEmail) {
-        markManualAttendance(eventId, request, userEmail, LocalDateTime.now());
+        markManualAttendance(eventId, request, userEmail, DateTimeUtil.now());
     }
 
     @Transactional

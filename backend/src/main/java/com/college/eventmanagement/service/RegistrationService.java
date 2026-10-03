@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.college.eventmanagement.util.DateTimeUtil;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -65,7 +66,7 @@ public class RegistrationService {
         }
 
         // 3. Verify registration window
-        LocalDate today = LocalDate.now();
+        LocalDate today = DateTimeUtil.today();
         if (today.isBefore(event.getRegistrationStartDate())) {
             throw new BadRequestException("Registration has not started yet. Registration opens on "
                     + event.getRegistrationStartDate() + ".");
@@ -219,7 +220,7 @@ public class RegistrationService {
         long registered = registrationRepository.countByStudentAndStatus(student, RegistrationStatus.REGISTERED)
                 + registrationRepository.countByStudentAndStatus(student, RegistrationStatus.ATTENDED);
         long attended = attendanceRepository.countByStudentAndStatus(student, AttendanceStatus.PRESENT);
-        long available = eventRepository.findUpcomingPublishedEvents(LocalDate.now(), java.time.LocalTime.now()).size();
+        long available = eventRepository.findUpcomingPublishedEvents(DateTimeUtil.today(), DateTimeUtil.currentTime()).size();
 
         return new StudentDashboardStats(registered, attended, available);
     }
@@ -249,7 +250,7 @@ public class RegistrationService {
         String attRecordStatus = (attendance != null && attendance.getStatus() == AttendanceStatus.PRESENT) ? "PRESENT" : "ABSENT";
         res.setAttendanceStatus(attRecordStatus);
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = DateTimeUtil.now();
         String attState = AttendanceService.determineAttendanceState(r.getEvent(), attendance, now);
         res.setAttendanceState(attState);
 

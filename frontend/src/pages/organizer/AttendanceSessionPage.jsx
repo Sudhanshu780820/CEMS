@@ -68,7 +68,7 @@ export default function AttendanceSessionPage() {
       toast.success('Attendance session started! QR Code active.');
       loadSessionData();
     } catch (err) {
-      toast.error('Failed to start session');
+      toast.error(err.response?.data?.message || 'Failed to start session');
     } finally {
       setToggling(false);
     }
@@ -82,7 +82,7 @@ export default function AttendanceSessionPage() {
       toast.info('Attendance session closed.');
       loadSessionData();
     } catch (err) {
-      toast.error('Failed to stop session');
+      toast.error(err.response?.data?.message || 'Failed to stop session');
     } finally {
       setToggling(false);
     }
@@ -108,7 +108,7 @@ export default function AttendanceSessionPage() {
       toast.success('All registered students marked PRESENT');
       loadSessionData();
     } catch (err) {
-      toast.error('Failed to mark all present');
+      toast.error(err.response?.data?.message || 'Failed to mark all present');
     }
   };
 
@@ -135,9 +135,15 @@ export default function AttendanceSessionPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${isActive ? 'bg-emerald-400 animate-ping' : 'bg-slate-600'}`} />
+              <span className={`w-2.5 h-2.5 rounded-full ${isActive ? 'bg-emerald-400 animate-ping' : event?.attendanceState === 'CHECK_IN_OPEN' ? 'bg-amber-400' : 'bg-slate-600'}`} />
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                {isActive ? 'Session Live' : 'Session Offline'}
+                {isActive
+                  ? 'Session Live'
+                  : event?.attendanceState === 'CHECK_IN_OPEN'
+                  ? 'Window Open (QR Offline)'
+                  : event?.attendanceState === 'NOT_STARTED'
+                  ? 'Check-in Not Started'
+                  : 'Session Offline'}
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-white">{event?.title}</h1>
@@ -240,9 +246,13 @@ export default function AttendanceSessionPage() {
                 </div>
                 <p className="text-sm text-slate-300 font-semibold">Attendance Session Offline</p>
                 <p className="text-xs text-slate-400 max-w-xs">
-                  Click 'Start Attendance Session' above to generate a live QR code and accept student check-ins.
+                  {event?.attendanceState === 'NOT_STARTED'
+                    ? `Check-in opens when the event starts (${event?.startTime || 'Start time'}).`
+                    : event?.attendanceState === 'CHECK_IN_CLOSED'
+                    ? 'The 24-hour attendance window has ended.'
+                    : "Click 'Start Attendance Session' above to generate a live QR code and accept student check-ins."}
                 </p>
-                <Button variant="primary" icon={Power} onClick={handleStartSession}>
+                <Button variant="primary" icon={Power} onClick={handleStartSession} loading={toggling}>
                   Activate Live Session
                 </Button>
               </div>

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import com.college.eventmanagement.util.DateTimeUtil;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -267,8 +268,8 @@ public class EventService {
             }
         }
 
-        LocalDate today = LocalDate.now();
-        java.time.LocalTime currentTime = java.time.LocalTime.now();
+        LocalDate today = DateTimeUtil.today();
+        LocalTime currentTime = DateTimeUtil.currentTime();
 
         List<Event> events;
         // Admins can search across all institutional events including past/completed
@@ -314,8 +315,8 @@ public class EventService {
             return Collections.emptyList();
         }
 
-        LocalDate today = LocalDate.now();
-        LocalTime currentTime = LocalTime.now();
+        LocalDate today = DateTimeUtil.today();
+        LocalTime currentTime = DateTimeUtil.currentTime();
 
         // 1. Query upcoming published events
         List<Event> upcomingEvents = eventRepository.findUpcomingPublishedEvents(today, currentTime);
@@ -387,7 +388,7 @@ public class EventService {
                 .orElseThrow(() -> new ResourceNotFoundException("Organizer profile not found"));
 
         List<Event> events = eventRepository.findByOrganizerOrderByEventDateDescStartTimeDesc(organizer);
-        LocalDate today = LocalDate.now();
+        LocalDate today = DateTimeUtil.today();
 
         long totalEvents = events.size();
         long upcomingEvents = events.stream().filter(e -> e.getEventDate().isAfter(today) || (e.getEventDate().isEqual(today) && e.getStatus() != EventStatus.COMPLETED && e.getStatus() != EventStatus.CANCELLED)).count();
@@ -568,8 +569,8 @@ public class EventService {
             r.setConflictingEvent(summary);
         }
 
-        LocalDate today = LocalDate.now();
-        LocalTime now = LocalTime.now();
+        LocalDate today = DateTimeUtil.today();
+        LocalTime now = DateTimeUtil.currentTime();
         boolean isPast = event.getStatus() == EventStatus.COMPLETED
                 || event.getEventDate().isBefore(today)
                 || (event.getEventDate().isEqual(today) && event.getEndTime().isBefore(now));
@@ -609,12 +610,12 @@ public class EventService {
                 if (attendanceRepository != null) {
                     att = attendanceRepository.findByEventIdAndStudentId(event.getId(), student.getId()).orElse(null);
                 }
-                String attState = AttendanceService.determineAttendanceState(event, att, LocalDateTime.now());
+                String attState = AttendanceService.determineAttendanceState(event, att, DateTimeUtil.now());
                 r.setAttendanceState(attState);
                 r.setStudentAttendanceStatus(att != null && att.getStatus() == AttendanceStatus.PRESENT ? "PRESENT" : "ABSENT");
                 r.setCheckInAllowed("CHECK_IN_OPEN".equals(attState) && event.isAttendanceActive() && (att == null || att.getStatus() != AttendanceStatus.PRESENT));
             } else {
-                String attState = AttendanceService.determineAttendanceState(event, null, LocalDateTime.now());
+                String attState = AttendanceService.determineAttendanceState(event, null, DateTimeUtil.now());
                 r.setAttendanceState(attState);
                 r.setStudentAttendanceStatus("ABSENT");
                 r.setCheckInAllowed(false);
@@ -640,7 +641,7 @@ public class EventService {
                 }
             }
         } else {
-            String attState = AttendanceService.determineAttendanceState(event, null, LocalDateTime.now());
+            String attState = AttendanceService.determineAttendanceState(event, null, DateTimeUtil.now());
             r.setAttendanceState(attState);
             r.setStudentAttendanceStatus("ABSENT");
             r.setCheckInAllowed(false);

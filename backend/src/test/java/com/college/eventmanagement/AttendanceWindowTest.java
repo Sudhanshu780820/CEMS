@@ -6,6 +6,7 @@ import com.college.eventmanagement.exception.BadRequestException;
 import com.college.eventmanagement.exception.ConflictException;
 import com.college.eventmanagement.repository.*;
 import com.college.eventmanagement.service.*;
+import com.college.eventmanagement.util.DateTimeUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -1156,5 +1157,104 @@ public class AttendanceWindowTest {
         Attendance inDb = repoAttendances.stream().filter(a -> a.getId().equals(992L)).findFirst().orElseThrow();
         assertEquals(originalCheckIn, inDb.getCheckInTime(), "Original checkInTime must remain intact");
         assertEquals(1, repoAttendances.size(), "No new attendance records created");
+    }
+
+    @Test
+    @DisplayName("39. Organizer Attendance: Running event (23:35-23:59 at 23:40) starts session successfully and generates token")
+    void test39_organizerAttendance_RunningEvent_StartsSessionSuccessfully() {
+        Event testEvent = new Event();
+        testEvent.setId(888L);
+        testEvent.setTitle("Testing");
+        testEvent.setDescription("Testing attendance session");
+        testEvent.setCategory("Technical");
+        testEvent.setOrganizer(organizer);
+        testEvent.setVenue(venue1);
+        testEvent.setEventDate(LocalDate.of(2026, 10, 3));
+        testEvent.setStartTime(LocalTime.of(23, 35));
+        testEvent.setEndTime(LocalTime.of(23, 59));
+        testEvent.setMaxCapacity(50);
+        testEvent.setRegisteredCount(1);
+        testEvent.setStatus(EventStatus.PUBLISHED);
+        testEvent.setAttendanceActive(false);
+        testEvent.setAttendanceToken(null);
+        repoEvents.add(testEvent);
+
+        LocalDateTime currentTimeAt2340 = LocalDateTime.of(2026, 10, 3, 23, 40);
+
+        // Verify window is open
+        assertTrue(AttendanceService.isWindowOpen(testEvent.getEventDate(), testEvent.getStartTime(), testEvent.getEndTime(), currentTimeAt2340));
+        assertEquals("CHECK_IN_OPEN", AttendanceService.determineAttendanceState(testEvent, null, currentTimeAt2340));
+
+        // Start session
+        String token = attendanceService.startAttendanceSession(testEvent.getId(), "organizer@college.edu", currentTimeAt2340);
+
+        assertNotNull(token);
+        assertFalse(token.isBlank());
+        assertTrue(testEvent.isAttendanceActive(), "Event attendanceActive must be true after starting session");
+        assertEquals(token, testEvent.getAttendanceToken());
+    }
+
+    @Test
+    @DisplayName("40. Organizer Attendance: Event before start (23:35 at 22:00) throws BadRequestException")
+    void test40_organizerAttendance_BeforeStart_ThrowsBadRequestException() {
+        Event testEvent = new Event();
+        testEvent.setId(889L);
+        testEvent.setTitle("Testing Early");
+        testEvent.setOrganizer(organizer);
+        testEvent.setVenue(venue1);
+        testEvent.setEventDate(LocalDate.of(2026, 10, 3));
+        testEvent.setStartTime(LocalTime.of(23, 35));
+        testEvent.setEndTime(LocalTime.of(23, 59));
+        testEvent.setStatus(EventStatus.PUBLISHED);
+        repoEvents.add(testEvent);
+
+        LocalDateTime earlyTime = LocalDateTime.of(2026, 10, 3, 22, 0);
+
+        assertFalse(AttendanceService.isWindowOpen(testEvent.getEventDate(), testEvent.getStartTime(), testEvent.getEndTime(), earlyTime));
+        assertEquals("NOT_STARTED", AttendanceService.determineAttendanceState(testEvent, null, earlyTime));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                attendanceService.startAttendanceSession(testEvent.getId(), "organizer@college.edu", earlyTime)
+        );
+
+        assertTrue(ex.getMessage().contains("Check-in has not started yet"));
+        assertFalse(testEvent.isAttendanceActive());
+    }
+
+    @Test
+    @DisplayName("41. Organizer Attendance: Event past grace period (end + 24h) throws BadRequestException")
+    void test41_organizerAttendance_PastGracePeriod_ThrowsBadRequestException() {
+        Event testEvent = new Event();
+        testEvent.setId(890L);
+        testEvent.setTitle("Testing Late");
+        testEvent.setOrganizer(organizer);
+        testEvent.setVenue(venue1);
+        testEvent.setEventDate(LocalDate.of(2026, 10, 3));
+        testEvent.setStartTime(LocalTime.of(23, 35));
+        testEvent.setEndTime(LocalTime.of(23, 59));
+        testEvent.setStatus(EventStatus.PUBLISHED);
+        repoEvents.add(testEvent);
+
+        LocalDateTime expiredTime = LocalDateTime.of(2026, 10, 5, 0, 1);
+
+        assertFalse(AttendanceService.isWindowOpen(testEvent.getEventDate(), testEvent.getStartTime(), testEvent.getEndTime(), expiredTime));
+        assertEquals("CHECK_IN_CLOSED", AttendanceService.determineAttendanceState(testEvent, null, expiredTime));
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                attendanceService.startAttendanceSession(testEvent.getId(), "organizer@college.edu", expiredTime)
+        );
+
+        assertTrue(ex.getMessage().contains("Check-in is closed"));
+        assertFalse(testEvent.isAttendanceActive());
+    }
+
+    @Test
+    @DisplayName("42. DateTimeUtil: Authoritative campus timezone is Asia/Kolkata (UTC+05:30)")
+    void test42_dateTimeUtil_CampusTimezoneIsAsiaKolkata() {
+        assertEquals("Asia/Kolkata", DateTimeUtil.CAMPUS_ZONE_ID.getId());
+        assertEquals(DateTimeUtil.CAMPUS_ZONE_ID, DateTimeUtil.getZoneId());
+        assertNotNull(DateTimeUtil.now());
+        assertNotNull(DateTimeUtil.today());
+        assertNotNull(DateTimeUtil.currentTime());
     }
 }

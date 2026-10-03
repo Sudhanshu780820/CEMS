@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class AuthService {
@@ -112,15 +114,17 @@ public class AuthService {
 
     @Transactional
     public AuthResponse registerStudent(StudentRegisterRequest request) {
+        validateRegistrationDetails(request);
+
         String email = request.getEmail().trim().toLowerCase();
         String enrollmentId = request.getEnrollmentId().trim().toUpperCase();
 
         if (userRepository.existsByEmail(email)) {
-            throw new ConflictException("Email " + email + " is already registered");
+            throw new ConflictException("This email is already registered.");
         }
 
         if (studentRepository.existsByEnrollmentId(enrollmentId)) {
-            throw new ConflictException("Enrollment ID " + enrollmentId + " is already registered");
+            throw new ConflictException("This enrollment ID is already registered.");
         }
 
         // Create User account
@@ -141,7 +145,8 @@ public class AuthService {
         student.setCurrentYear(request.getCurrentYear().trim());
         student.setCurrentSemester(request.getCurrentSemester().trim());
         student.setSection(request.getSection().trim().toUpperCase());
-        student.setPhoneNumber(request.getPhoneNumber());
+        String phone = request.getPhoneNumber();
+        student.setPhoneNumber(phone != null && !phone.trim().isEmpty() ? phone.trim() : null);
         student.setApprovalStatus(ApprovalStatus.PENDING);
         student = studentRepository.save(student);
 
@@ -203,5 +208,96 @@ public class AuthService {
                 enrollmentId,
                 branch
         );
+    }
+
+    private void validateRegistrationDetails(StudentRegisterRequest request) {
+        // 1. Required fields presence
+        if (request.getFullName() == null || request.getFullName().trim().isEmpty()) {
+            throw new BadRequestException("Full Name is required");
+        }
+        if (request.getEnrollmentId() == null || request.getEnrollmentId().trim().isEmpty()) {
+            throw new BadRequestException("Enrollment ID is required");
+        }
+        if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            throw new BadRequestException("Email is required");
+        }
+        if (request.getBranch() == null || request.getBranch().trim().isEmpty()) {
+            throw new BadRequestException("Branch is required");
+        }
+        if (request.getSection() == null || request.getSection().trim().isEmpty()) {
+            throw new BadRequestException("Section is required");
+        }
+
+        // 2. Password validation: >= 6 chars, at least 1 letter, at least 1 digit
+        String password = request.getPassword();
+        if (password == null || password.length() < 6 || !password.matches(".*[a-zA-Z].*") || !password.matches(".*[0-9].*")) {
+            throw new BadRequestException("Password must contain at least one letter and one number.");
+        }
+
+        // 3. Academic Session format and duration validation
+        String academicYear = request.getAcademicYear() != null ? request.getAcademicYear().trim() : "";
+        Matcher sessionMatcher = Pattern.compile("^(\\d{4})-(\\d{4})$").matcher(academicYear);
+        if (!sessionMatcher.matches()) {
+            throw new BadRequestException("Academic session must be in format YYYY-YYYY.");
+        }
+        int startYear = Integer.parseInt(sessionMatcher.group(1));
+        int endYear = Integer.parseInt(sessionMatcher.group(2));
+        if (endYear <= startYear) {
+            throw new BadRequestException("End year must be after start year.");
+        }
+        int duration = endYear - startYear;
+        if (duration > 5) {
+            throw new BadRequestException("Academic session cannot be longer than 5 years.");
+        }
+        if (duration < 1) {
+            throw new BadRequestException("Academic session must be between 1 and 5 years.");
+        }
+
+        // 4. Current Year vs Academic Session Duration
+        int yearNum = parseYearNumber(request.getCurrentYear());
+        if (yearNum < 1 || yearNum > 4) {
+            throw new BadRequestException("Invalid Current Year.");
+        }
+        if (yearNum > duration) {
+            throw new BadRequestException("Selected year is not available for this academic session.");
+        }
+
+        // 5. Semester vs Current Year Mapping
+        int semNum = parseSemesterNumber(request.getCurrentSemester());
+        if (semNum < 1 || semNum > 8) {
+            throw new BadRequestException("Invalid Current Semester.");
+        }
+        int expectedMinSem = 2 * yearNum - 1;
+        int expectedMaxSem = 2 * yearNum;
+        if (semNum != expectedMinSem && semNum != expectedMaxSem) {
+            throw new BadRequestException("Selected semester is not valid for the selected academic year.");
+        }
+
+        // 6. Optional Phone Number validation (if provided, must be exactly 10 digits)
+        String phone = request.getPhoneNumber();
+        if (phone != null && !phone.trim().isEmpty()) {
+            if (!phone.trim().matches("^[0-9]{10}$")) {
+                throw new BadRequestException("Phone number must contain exactly 10 digits.");
+            }
+        }
+    }
+
+    private int parseYearNumber(String currentYear) {
+        if (currentYear == null) return -1;
+        String s = currentYear.trim().toLowerCase();
+        if (s.startsWith("1")) return 1;
+        if (s.startsWith("2")) return 2;
+        if (s.startsWith("3")) return 3;
+        if (s.startsWith("4")) return 4;
+        return -1;
+    }
+
+    private int parseSemesterNumber(String currentSemester) {
+        if (currentSemester == null) return -1;
+        Matcher m = Pattern.compile("([1-8])").matcher(currentSemester.trim());
+        if (m.find()) {
+            return Integer.parseInt(m.group(1));
+        }
+        return -1;
     }
 }

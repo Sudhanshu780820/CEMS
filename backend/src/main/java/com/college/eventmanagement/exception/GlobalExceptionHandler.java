@@ -45,16 +45,48 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex, HttpServletRequest request) {
         Map<String, String> fieldErrors = new HashMap<>();
+        String firstError = null;
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             fieldErrors.put(error.getField(), error.getDefaultMessage());
+            if (firstError == null) {
+                firstError = error.getDefaultMessage();
+            }
         }
-        return buildResponse(HttpStatus.BAD_REQUEST, "Validation failed", request.getRequestURI(), fieldErrors);
+        String message = firstError != null ? firstError : "Validation failed";
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request.getRequestURI(), fieldErrors);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
+        String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
+        if (msg.contains("enrollment_id")) {
+            return buildResponse(HttpStatus.CONFLICT, "This enrollment ID is already registered.", request.getRequestURI(), null);
+        } else if (msg.contains("email")) {
+            return buildResponse(HttpStatus.CONFLICT, "This email is already registered.", request.getRequestURI(), null);
+        } else if (msg.contains("data too long") || msg.contains("data truncation") || msg.contains("phone_number")) {
+            return buildResponse(HttpStatus.BAD_REQUEST, "Phone number must contain exactly 10 digits.", request.getRequestURI(), null);
+        }
+        return buildResponse(HttpStatus.BAD_REQUEST, "Invalid or duplicate data provided.", request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleConstraintViolation(jakarta.validation.ConstraintViolationException ex, HttpServletRequest request) {
+        String firstMessage = ex.getConstraintViolations().stream()
+                .map(jakarta.validation.ConstraintViolation::getMessage)
+                .findFirst()
+                .orElse("Validation constraint violation");
+        return buildResponse(HttpStatus.BAD_REQUEST, firstMessage, request.getRequestURI(), null);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI(), null);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex, HttpServletRequest request) {
         ex.printStackTrace();
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred: " + ex.getMessage(), request.getRequestURI(), null);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred. Please try again later.", request.getRequestURI(), null);
     }
 
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message, String path, Object details) {

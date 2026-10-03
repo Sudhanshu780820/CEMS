@@ -2,7 +2,7 @@ package com.college.eventmanagement.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Pattern;
 
 public class StudentRegisterRequest {
 
@@ -14,7 +14,7 @@ public class StudentRegisterRequest {
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).{6,}$", message = "Password must contain at least one letter and one number.")
     private String password;
 
     @NotBlank(message = "Enrollment ID is required")
@@ -24,6 +24,7 @@ public class StudentRegisterRequest {
     private String branch;
 
     @NotBlank(message = "Academic Year is required")
+    @Pattern(regexp = "^\\d{4}-\\d{4}$", message = "Academic session must be in format YYYY-YYYY.")
     private String academicYear;
 
     @NotBlank(message = "Current Year is required")
@@ -35,6 +36,7 @@ public class StudentRegisterRequest {
     @NotBlank(message = "Section is required")
     private String section;
 
+    @Pattern(regexp = "^$|^[0-9]{10}$", message = "Phone number must contain exactly 10 digits.")
     private String phoneNumber;
 
     public StudentRegisterRequest() {}

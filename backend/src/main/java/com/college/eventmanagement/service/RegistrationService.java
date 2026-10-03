@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -244,7 +245,23 @@ public class RegistrationService {
         res.setRegisteredAt(r.getRegisteredAt());
 
         Optional<Attendance> att = attendanceRepository.findByEventIdAndStudentId(r.getEvent().getId(), r.getStudent().getId());
-        res.setAttendanceStatus(att.isPresent() ? att.get().getStatus().name() : "ABSENT");
+        Attendance attendance = att.orElse(null);
+        String attRecordStatus = (attendance != null && attendance.getStatus() == AttendanceStatus.PRESENT) ? "PRESENT" : "ABSENT";
+        res.setAttendanceStatus(attRecordStatus);
+
+        LocalDateTime now = LocalDateTime.now();
+        String attState = AttendanceService.determineAttendanceState(r.getEvent(), attendance, now);
+        res.setAttendanceState(attState);
+
+        boolean checkInAllowed = "CHECK_IN_OPEN".equals(attState) && (attendance == null || attendance.getStatus() != AttendanceStatus.PRESENT);
+        res.setCheckInAllowed(checkInAllowed);
+
+        if (r.getEvent().getEventDate() != null && r.getEvent().getStartTime() != null) {
+            res.setCheckInOpensAt(LocalDateTime.of(r.getEvent().getEventDate(), r.getEvent().getStartTime()));
+        }
+        if (r.getEvent().getEventDate() != null && r.getEvent().getEndTime() != null) {
+            res.setCheckInClosesAt(LocalDateTime.of(r.getEvent().getEventDate(), r.getEvent().getEndTime()).plusHours(24));
+        }
 
         return res;
     }

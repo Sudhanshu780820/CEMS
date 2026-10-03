@@ -17,6 +17,8 @@ import Button from '../../components/common/Button';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import QrScannerModal from '../../components/qr/QrScannerModal';
+import EventDateBlock from '../../components/common/EventDateBlock';
+import { formatDate, formatTime, formatDateTime, formatTimeRange } from '../../utils/dateUtils';
 import { useToast } from '../../context/ToastContext';
 
 export default function MyRegistrationsPage() {
@@ -26,12 +28,45 @@ export default function MyRegistrationsPage() {
   const [cancellingId, setCancellingId] = useState(null);
   const toast = useToast();
 
+  const sortRegistrations = (list) => {
+    const now = Date.now();
+    return [...list].sort((a, b) => {
+      const getRank = (reg) => {
+        const isPresent = reg.attendanceStatus === 'PRESENT' || reg.status === 'ATTENDED' || reg.attendanceState === 'PRESENT';
+        const start = new Date(`${reg.eventDate}T${reg.startTime || '00:00:00'}`).getTime();
+        const end = new Date(`${reg.eventDate}T${reg.endTime || '23:59:59'}`).getTime();
+        const graceEnd = end + 24 * 3600 * 1000;
+
+        if (!isPresent && (reg.attendanceState === 'CHECK_IN_OPEN' || (now >= start && now <= graceEnd))) {
+          return 1;
+        }
+        if (!isPresent && (reg.attendanceState === 'NOT_STARTED' || now < start)) {
+          return 2;
+        }
+        const sevenDaysAgo = now - 7 * 24 * 3600 * 1000;
+        if (end >= sevenDaysAgo || isPresent) {
+          return 3;
+        }
+        return 4;
+      };
+
+      const rankA = getRank(a);
+      const rankB = getRank(b);
+
+      if (rankA !== rankB) return rankA - rankB;
+      if (rankA === 1 || rankA === 2) {
+        return new Date(`${a.eventDate}T${a.startTime || '00:00:00'}`) - new Date(`${b.eventDate}T${b.startTime || '00:00:00'}`);
+      }
+      return new Date(`${b.eventDate}T${b.endTime || '23:59:59'}`) - new Date(`${a.eventDate}T${a.endTime || '23:59:59'}`);
+    });
+  };
+
   const fetchRegistrations = async () => {
     setLoading(true);
     try {
       const res = await api.get('/student/registrations');
       const active = (res.data || []).filter((r) => r.status !== 'CANCELLED');
-      setRegistrations(active);
+      setRegistrations(sortRegistrations(active));
     } catch (err) {
       toast.error('Failed to load registrations');
     } finally {
@@ -81,69 +116,78 @@ export default function MyRegistrationsPage() {
           />
         ) : (
           <div className="space-y-4">
-            {registrations.map((reg) => (
-              <div
-                key={reg.id}
-                className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-5"
-              >
-                {/* Event Information */}
-                <div className="space-y-2 flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800/60">
-                      {reg.category}
-                    </span>
-                    <Badge variant="default" size="sm">
-                      {reg.status}
-                    </Badge>
-                    <Badge
-                      variant={reg.attendanceStatus === 'PRESENT' ? 'success' : 'default'}
-                      size="sm"
-                    >
-                      Attendance: {reg.attendanceStatus || 'PENDING'}
-                    </Badge>
+            {registrations.map((reg) => {
+              const isPresent = reg.attendanceStatus === 'PRESENT' || reg.status === 'ATTENDED' || reg.attendanceState === 'PRESENT';
+              const now = Date.now();
+              const start = new Date(`${reg.eventDate}T${reg.startTime || '00:00:00'}`).getTime();
+              const end = new Date(`${reg.eventDate}T${reg.endTime || '23:59:59'}`).getTime();
+              const graceEnd = end + 24 * 3600 * 1000;
+              const isCheckInOpen = !isPresent && (reg.attendanceState === 'CHECK_IN_OPEN' || (now >= start && now <= graceEnd));
+
+              return (
+                <div
+                  key={reg.id}
+                  className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-5"
+                >
+                  {/* Event Information with DateBlock */}
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <EventDateBlock date={reg.eventDate} />
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800/60">
+                          {reg.category}
+                        </span>
+                        {isPresent ? (
+                          <Badge variant="success" size="sm">PRESENT ✓</Badge>
+                        ) : isCheckInOpen ? (
+                          <Badge variant="warning" size="sm" className="animate-pulse">CHECK-IN OPEN</Badge>
+                        ) : (reg.attendanceState === 'NOT_STARTED' || now < start) ? (
+                          <Badge variant="default" size="sm">UPCOMING</Badge>
+                        ) : (
+                          <Badge variant="danger" size="sm">ABSENT ✕</Badge>
+                        )}
+                      </div>
+
+                      <Link to={`/events/${reg.eventId}`} className="hover:text-indigo-400 transition-colors block">
+                        <h3 className="text-base font-bold text-white truncate">{reg.eventTitle}</h3>
+                      </Link>
+
+                      <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>{formatTimeRange(reg.startTime, reg.endTime) || `${formatTime(reg.startTime)} - ${formatTime(reg.endTime)}`}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                          <span className="truncate">{reg.venueName}</span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-500 font-mono">
+                        Registered on: {formatDateTime(reg.registeredAt)}
+                      </p>
+                    </div>
                   </div>
 
-                  <Link to={`/events/${reg.eventId}`} className="hover:text-indigo-400 transition-colors block">
-                    <h3 className="text-base font-bold text-white truncate">{reg.eventTitle}</h3>
-                  </Link>
-
-                  <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-400">
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{reg.eventDate}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{reg.startTime} - {reg.endTime}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-indigo-400" />
-                      <span className="truncate">{reg.venueName}</span>
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-slate-500 font-mono">
-                    Registered on: {new Date(reg.registeredAt).toLocaleDateString()} at{' '}
-                    {new Date(reg.registeredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-
-                {/* Actions Button Strip */}
-                <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={QrCode}
-                    onClick={() => {
-                      setSelectedScanEvent({
-                        id: reg.eventId,
-                        title: reg.eventTitle,
-                        venue: { name: reg.venueName }
-                      });
-                    }}
-                  >
-                    Scan QR Check-in
-                  </Button>
+                  {/* Actions Button Strip */}
+                  <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                    {/* ONLY display QR check-in when window is open and user is ABSENT */}
+                    {isCheckInOpen && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={QrCode}
+                        onClick={() => {
+                          setSelectedScanEvent({
+                            id: reg.eventId,
+                            title: reg.eventTitle,
+                            venue: { name: reg.venueName }
+                          });
+                        }}
+                      >
+                        Scan QR Check-in
+                      </Button>
+                    )}
 
                   <Link to={`/events/${reg.eventId}`}>
                     <Button variant="secondary" size="sm" icon={ExternalLink}>
@@ -161,9 +205,10 @@ export default function MyRegistrationsPage() {
                       Cancel
                     </Button>
                   )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

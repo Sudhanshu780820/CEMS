@@ -24,6 +24,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import QrScannerModal from '../../components/qr/QrScannerModal';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { formatDate, formatTime, formatDateTime, formatTimeRange } from '../../utils/dateUtils';
 
 export default function EventDetailPage() {
   const { id } = useParams();
@@ -161,12 +162,12 @@ export default function EventDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
               <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl backdrop-blur-sm">
                 <p className="text-[11px] text-slate-400 font-medium">Date</p>
-                <p className="text-sm font-semibold text-white mt-0.5">{event.eventDate}</p>
+                <p className="text-sm font-semibold text-white mt-0.5">{formatDate(event.eventDate)}</p>
               </div>
 
               <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl backdrop-blur-sm">
                 <p className="text-[11px] text-slate-400 font-medium">Time</p>
-                <p className="text-sm font-semibold text-white mt-0.5">{event.startTime} - {event.endTime}</p>
+                <p className="text-sm font-semibold text-white mt-0.5">{formatTimeRange(event.startTime, event.endTime) || `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`}</p>
               </div>
 
               <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl backdrop-blur-sm">
@@ -327,16 +328,29 @@ export default function EventDetailPage() {
                         <span>You are registered for this event!</span>
                       </div>
 
-                      {/* QR Attendance Button if session is open! */}
-                      {event.attendanceActive && (
+                      {/* Attendance Status & Actions */}
+                      {event.studentAttendanceStatus === 'PRESENT' || event.attendanceState === 'PRESENT' ? (
+                        <div className="p-3 bg-emerald-950/80 border border-emerald-700/60 rounded-xl text-emerald-400 text-xs font-semibold flex items-center justify-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span>Attendance Verified: PRESENT ✓</span>
+                        </div>
+                      ) : event.attendanceState === 'CHECK_IN_OPEN' || (event.checkInAllowed && event.attendanceActive) ? (
                         <Button
                           variant="success"
                           className="w-full animate-bounce"
                           icon={QrCode}
                           onClick={() => setQrModalOpen(true)}
                         >
-                          Check In with QR Code
+                          Scan QR Check-in
                         </Button>
+                      ) : event.attendanceState === 'NOT_STARTED' ? (
+                        <div className="p-2.5 bg-blue-950/40 border border-blue-800/50 rounded-xl text-[11px] text-blue-300 text-center font-medium">
+                          Check-in opens: {formatDateTime(event.eventDate, event.startTime)}
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-rose-950/40 border border-rose-800/50 rounded-xl text-[11px] text-rose-300 text-center font-medium">
+                          Check-in is closed (24-hour window ended)
+                        </div>
                       )}
 
                       <Button
@@ -359,7 +373,7 @@ export default function EventDetailPage() {
                         Registration Not Started
                       </Button>
                       <p className="text-[11px] text-amber-400 text-center font-medium">
-                        Registration starts on {event.registrationStartDate}
+                        Registration starts on {formatDate(event.registrationStartDate)}
                       </p>
                     </div>
                   ) : event.registrationState === 'CLOSED' || !event.registrationOpen ? (
@@ -368,7 +382,7 @@ export default function EventDetailPage() {
                         Registration Closed
                       </Button>
                       <p className="text-[11px] text-rose-400 text-center font-medium">
-                        Registration ended on {event.registrationEndDate}
+                        Registration ended on {formatDate(event.registrationEndDate)}
                       </p>
                     </div>
                   ) : event.remainingSeats <= 0 ? (

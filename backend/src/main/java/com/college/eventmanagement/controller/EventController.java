@@ -45,6 +45,13 @@ public class EventController {
         return ResponseEntity.ok(eventService.getEventsForDiscovery(email, query, category, startDate, endDate));
     }
 
+    @GetMapping("/events/recommendations")
+    @PreAuthorize("hasAuthority('ROLE_STUDENT')")
+    public ResponseEntity<List<EventResponse>> getRecommendations(Authentication authentication) {
+        String email = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(eventService.getRecommendations(email));
+    }
+
     @GetMapping("/events/{id}")
     public ResponseEntity<EventResponse> getEventById(
             @PathVariable Long id,

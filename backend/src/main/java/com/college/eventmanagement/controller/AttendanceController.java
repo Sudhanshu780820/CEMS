@@ -52,7 +52,7 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceService.markAttendanceViaQr(id, request, authentication.getName()));
     }
 
-    @PostMapping("/organizer/events/{id}/attendance/manual")
+    @PostMapping({"/organizer/events/{id}/attendance/manual", "/admin/events/{id}/attendance/manual"})
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZER', 'ROLE_ADMIN')")
     public ResponseEntity<Map<String, String>> markManualAttendance(
             @PathVariable Long id,

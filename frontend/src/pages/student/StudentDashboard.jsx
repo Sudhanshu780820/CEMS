@@ -20,6 +20,8 @@ import Button from '../../components/common/Button';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import QrScannerModal from '../../components/qr/QrScannerModal';
+import EventDateBlock from '../../components/common/EventDateBlock';
+import { formatDate, formatTime, formatDateTime } from '../../utils/dateUtils';
 import { useAuth } from '../../context/AuthContext';
 
 export default function StudentDashboard() {
@@ -39,18 +41,80 @@ export default function StudentDashboard() {
     return eventEnd < now;
   };
 
+  const sortRegistrations = (list) => {
+    const now = Date.now();
+    return [...list].sort((a, b) => {
+      const getRank = (reg) => {
+        const isPresent = reg.attendanceStatus === 'PRESENT' || reg.status === 'ATTENDED' || reg.attendanceState === 'PRESENT';
+        const start = new Date(`${reg.eventDate}T${reg.startTime || '00:00:00'}`).getTime();
+        const end = new Date(`${reg.eventDate}T${reg.endTime || '23:59:59'}`).getTime();
+        const graceEnd = end + 24 * 3600 * 1000;
+
+        // 1. CHECK-IN OPEN (Window open and not marked PRESENT)
+        if (!isPresent && (reg.attendanceState === 'CHECK_IN_OPEN' || (now >= start && now <= graceEnd))) {
+          return 1;
+        }
+        // 2. UPCOMING (Future start time, not marked present)
+        if (!isPresent && (reg.attendanceState === 'NOT_STARTED' || now < start)) {
+          return 2;
+        }
+        // 3. RECENTLY COMPLETED (Attended or completed within past 7 days)
+        const sevenDaysAgo = now - 7 * 24 * 3600 * 1000;
+        if (end >= sevenDaysAgo || isPresent) {
+          return 3;
+        }
+        // 4. OLDER COMPLETED
+        return 4;
+      };
+
+      const rankA = getRank(a);
+      const rankB = getRank(b);
+
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+
+      // Within rank 1 (CHECK-IN OPEN): order by start time ascending
+      if (rankA === 1) {
+        return new Date(`${a.eventDate}T${a.startTime || '00:00:00'}`) - new Date(`${b.eventDate}T${b.startTime || '00:00:00'}`);
+      }
+      // Within rank 2 (UPCOMING): chronological by start time
+      if (rankA === 2) {
+        return new Date(`${a.eventDate}T${a.startTime || '00:00:00'}`) - new Date(`${b.eventDate}T${b.startTime || '00:00:00'}`);
+      }
+      // Within completed (ranks 3 and 4): reverse chronological by end time
+      return new Date(`${b.eventDate}T${b.endTime || '23:59:59'}`) - new Date(`${a.eventDate}T${a.endTime || '23:59:59'}`);
+    });
+  };
+
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [statsRes, regRes, eventsRes] = await Promise.all([
+      let recs = [];
+      const [statsRes, regRes] = await Promise.all([
         api.get('/student/dashboard'),
-        api.get('/student/registrations'),
-        api.get('/events')
+        api.get('/student/registrations')
       ]);
       setStats(statsRes.data);
-      setRegistrations(regRes.data || []);
-      const upcoming = (eventsRes.data || []).filter((e) => !isCompletedEvent(e));
-      setUpcomingEvents(upcoming.slice(0, 3));
+      const sortedRegs = sortRegistrations(regRes.data || []);
+      setRegistrations(sortedRegs);
+
+      try {
+        const recRes = await api.get('/events/recommendations');
+        recs = recRes.data || [];
+      } catch {
+        // Fallback to discovery endpoint
+        const eventsRes = await api.get('/events');
+        const regIds = new Set((regRes.data || []).map(r => r.eventId));
+        recs = (eventsRes.data || []).filter(e => !regIds.has(e.id) && !isCompletedEvent(e));
+      }
+
+      // Defensive filtering for recommendations: exclude registered, past/completed, and ineligible
+      const regEventIds = new Set((regRes.data || []).map(r => r.eventId));
+      const filteredRecs = recs
+        .filter(e => !regEventIds.has(e.id) && !e.registered && !isCompletedEvent(e))
+        .slice(0, 3);
+      setUpcomingEvents(filteredRecs);
     } catch (err) {
       console.error('Failed to load student dashboard:', err);
     } finally {
@@ -61,6 +125,44 @@ export default function StudentDashboard() {
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  const getAttendanceBadge = (reg) => {
+    const isPresent = reg.attendanceStatus === 'PRESENT' || reg.status === 'ATTENDED' || reg.attendanceState === 'PRESENT';
+    if (isPresent) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950/90 text-emerald-400 border border-emerald-700/60 inline-flex items-center gap-1">
+          PRESENT ✓
+        </span>
+      );
+    }
+
+    const now = Date.now();
+    const start = new Date(`${reg.eventDate}T${reg.startTime || '00:00:00'}`).getTime();
+    const end = new Date(`${reg.eventDate}T${reg.endTime || '23:59:59'}`).getTime();
+    const graceEnd = end + 24 * 3600 * 1000;
+
+    if (reg.attendanceState === 'CHECK_IN_OPEN' || (now >= start && now <= graceEnd)) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/90 text-amber-300 border border-amber-600/70 inline-flex items-center gap-1 animate-pulse">
+          CHECK-IN OPEN
+        </span>
+      );
+    }
+
+    if (reg.attendanceState === 'NOT_STARTED' || now < start) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-950/90 text-blue-300 border border-blue-700/60 inline-flex items-center gap-1">
+          UPCOMING
+        </span>
+      );
+    }
+
+    return (
+      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-950/90 text-rose-400 border border-rose-700/60 inline-flex items-center gap-1">
+        ABSENT ✕
+      </span>
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -140,52 +242,84 @@ export default function StudentDashboard() {
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {registrations.slice(0, 4).map((reg) => (
-                <div
-                  key={reg.id}
-                  className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800">
-                        {reg.category}
-                      </span>
-                      <Badge variant={reg.status === 'ATTENDED' ? 'success' : 'default'} size="sm">
-                        {reg.status}
-                      </Badge>
+              {registrations.slice(0, 4).map((reg) => {
+                const isPresent = reg.attendanceStatus === 'PRESENT' || reg.status === 'ATTENDED' || reg.attendanceState === 'PRESENT';
+                const now = Date.now();
+                const start = new Date(`${reg.eventDate}T${reg.startTime || '00:00:00'}`).getTime();
+                const end = new Date(`${reg.eventDate}T${reg.endTime || '23:59:59'}`).getTime();
+                const graceEnd = end + 24 * 3600 * 1000;
+                const isCheckInOpen = !isPresent && (reg.attendanceState === 'CHECK_IN_OPEN' || (now >= start && now <= graceEnd));
+                const isUpcoming = !isPresent && (reg.attendanceState === 'NOT_STARTED' || now < start);
+
+                return (
+                  <div
+                    key={reg.id}
+                    className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <EventDateBlock date={reg.eventDate} />
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800">
+                            {reg.category}
+                          </span>
+                          {getAttendanceBadge(reg)}
+                        </div>
+
+                        <h3 className="text-sm font-bold text-white line-clamp-1">{reg.eventTitle}</h3>
+
+                        <div className="space-y-0.5 text-xs text-slate-400">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                            <span>{formatTime(reg.startTime)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                            <span className="truncate">{reg.venueName}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <h3 className="text-sm font-bold text-white line-clamp-1">{reg.eventTitle}</h3>
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
+                      <div className="text-[11px]">
+                        {isPresent ? (
+                          <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            Attendance Verified
+                          </span>
+                        ) : isCheckInOpen ? (
+                          <span className="text-amber-400 font-medium">
+                            Check-in open now
+                          </span>
+                        ) : isUpcoming ? (
+                          <span className="text-slate-400">
+                            Check-in opens: {formatDateTime(reg.eventDate, reg.startTime)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">
+                            Check-in closed
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="space-y-1 text-xs text-slate-400">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>{reg.eventDate} • {reg.startTime}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>{reg.venueName}</span>
-                      </div>
+                      {/* QR Check-in action ONLY shown when check-in is open and student is ABSENT */}
+                      {isCheckInOpen && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon={QrCode}
+                          onClick={() => {
+                            setSelectedEventForScan({ id: reg.eventId, title: reg.eventTitle, venue: { name: reg.venueName } });
+                          }}
+                        >
+                          Scan QR Check-in
+                        </Button>
+                      )}
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-                    <span className="text-[11px] text-slate-500">
-                      Check-in: <strong className={reg.attendanceStatus === 'PRESENT' ? 'text-emerald-400' : 'text-slate-400'}>{reg.attendanceStatus || 'PENDING'}</strong>
-                    </span>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      icon={QrCode}
-                      onClick={() => {
-                        setSelectedEventForScan({ id: reg.eventId, title: reg.eventTitle, venue: { name: reg.venueName } });
-                      }}
-                    >
-                      Scan QR Check-in
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -208,27 +342,36 @@ export default function StudentDashboard() {
                 key={e.id}
                 className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all p-4 space-y-3"
               >
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold text-indigo-300 px-2 py-0.5 rounded bg-indigo-950 border border-indigo-800/60">
-                      {e.category}
-                    </span>
-                    <Badge variant={e.eligible ? 'success' : 'danger'} size="sm">
-                      {e.eligible ? 'Eligible' : 'Not Eligible'}
-                    </Badge>
+                <div className="flex items-start gap-3">
+                  <EventDateBlock date={e.eventDate} size="sm" />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-indigo-300 px-2 py-0.5 rounded bg-indigo-950 border border-indigo-800/60">
+                        {e.category}
+                      </span>
+                      <Badge variant={e.eligible ? 'success' : 'danger'} size="sm">
+                        {e.eligible ? 'Eligible' : 'Not Eligible'}
+                      </Badge>
+                    </div>
+                    <h4 className="text-sm font-bold text-white line-clamp-1">{e.title}</h4>
+                    <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">{e.description}</p>
                   </div>
-                  <h4 className="text-sm font-bold text-white line-clamp-1">{e.title}</h4>
-                  <p className="text-xs text-slate-400 line-clamp-2 mt-1">{e.description}</p>
                 </div>
 
                 <div className="pt-2 border-t border-slate-800 text-xs text-slate-400 space-y-1">
-                  <p>{e.eventDate} at {e.startTime}</p>
-                  <p className="truncate text-slate-300">{e.venue?.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>{formatTime(e.startTime)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span className="truncate text-slate-300">{e.venue?.name}</span>
+                  </div>
                 </div>
 
                 <Link to={`/events/${e.id}`}>
                   <Button variant="secondary" size="sm" className="w-full">
-                    View & Register
+                    {e.registered ? 'REGISTERED' : 'VIEW EVENT'}
                   </Button>
                 </Link>
               </div>

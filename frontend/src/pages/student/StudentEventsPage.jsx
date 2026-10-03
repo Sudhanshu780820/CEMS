@@ -18,6 +18,8 @@ import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
+import EventDateBlock from '../../components/common/EventDateBlock';
+import { formatDate, formatTime, formatDateTime } from '../../utils/dateUtils';
 import { useAuth } from '../../context/AuthContext';
 
 export default function StudentEventsPage() {
@@ -160,31 +162,35 @@ export default function StudentEventsPage() {
                     <div className="absolute top-3 right-3">
                       <Badge
                         variant={
+                          event.registered ? 'purple' :
                           event.actionStatus === 'REGISTER NOW' ? 'success' :
                           event.actionStatus === 'REGISTRATION NOT STARTED' ? 'warning' :
-                          event.actionStatus === 'ALREADY REGISTERED' ? 'purple' : 'default'
+                          'default'
                         }
                         size="sm"
                       >
-                        {event.actionStatus}
+                        {event.registered ? 'REGISTERED' : event.actionStatus}
                       </Badge>
                     </div>
                   </div>
 
                   <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                    <div className="space-y-1.5">
-                      <h3 className="text-sm font-bold text-white line-clamp-1">{event.title}</h3>
-                      <p className="text-xs text-slate-400 line-clamp-2">{event.description}</p>
+                    <div className="flex items-start gap-3">
+                      <EventDateBlock date={event.eventDate} />
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <h3 className="text-sm font-bold text-white line-clamp-1">{event.title}</h3>
+                        <p className="text-xs text-slate-400 line-clamp-2">{event.description}</p>
+                      </div>
                     </div>
 
                     {/* Meta info */}
                     <div className="text-xs text-slate-300 space-y-1.5 border-t border-slate-800/80 pt-3">
                       <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>{event.eventDate} • {event.startTime}</span>
+                        <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>{formatTime(event.startTime)} - {formatTime(event.endTime)}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                        <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                         <span className="truncate">{event.venue?.name}</span>
                       </div>
                     </div>
@@ -192,7 +198,7 @@ export default function StudentEventsPage() {
                     {/* Registration window info if NOT_STARTED */}
                     {event.registrationState === 'NOT_STARTED' && (
                       <div className="p-2.5 bg-amber-950/40 border border-amber-800/50 rounded-xl text-[11px] text-amber-300 font-medium">
-                        Registration starts on {event.registrationStartDate}
+                        Registration starts on {formatDate(event.registrationStartDate)}
                       </div>
                     )}
 
@@ -222,11 +228,11 @@ export default function StudentEventsPage() {
                     {/* CTA */}
                     <Link to={`/events/${event.id}`}>
                       <Button
-                        variant={event.actionStatus === 'REGISTER NOW' ? 'primary' : 'secondary'}
+                        variant={!event.registered && event.actionStatus === 'REGISTER NOW' ? 'primary' : 'secondary'}
                         size="sm"
                         className="w-full justify-between"
                       >
-                        <span>{event.actionStatus}</span>
+                        <span>{event.registered ? 'REGISTERED' : event.actionStatus}</span>
                         <ChevronRight className="w-4 h-4" />
                       </Button>
                     </Link>

@@ -37,6 +37,9 @@ public class EventResponse {
     private boolean isFull;
     private String actionStatus; // "REGISTER NOW", "REGISTERED", "FULL", "REGISTRATION CLOSED", "NOT ELIGIBLE", "REGISTRATION NOT STARTED"
     private String registrationState; // "NOT_STARTED", "OPEN", "CLOSED"
+    private String attendanceState; // "NOT_STARTED", "CHECK_IN_OPEN", "PRESENT", "ABSENT", "CHECK_IN_CLOSED"
+    private boolean checkInAllowed;
+    private String studentAttendanceStatus;
 
     // Venue conflict details
     private boolean hasVenueConflict;
@@ -135,6 +138,15 @@ public class EventResponse {
 
     public String getRegistrationState() { return registrationState; }
     public void setRegistrationState(String registrationState) { this.registrationState = registrationState; }
+
+    public String getAttendanceState() { return attendanceState; }
+    public void setAttendanceState(String attendanceState) { this.attendanceState = attendanceState; }
+
+    public boolean isCheckInAllowed() { return checkInAllowed; }
+    public void setCheckInAllowed(boolean checkInAllowed) { this.checkInAllowed = checkInAllowed; }
+
+    public String getStudentAttendanceStatus() { return studentAttendanceStatus; }
+    public void setStudentAttendanceStatus(String studentAttendanceStatus) { this.studentAttendanceStatus = studentAttendanceStatus; }
 
     public boolean isHasVenueConflict() { return hasVenueConflict; }
     public void setHasVenueConflict(boolean hasVenueConflict) { this.hasVenueConflict = hasVenueConflict; }

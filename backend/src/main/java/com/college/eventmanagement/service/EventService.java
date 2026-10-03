@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -298,6 +299,51 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
+    public List<EventResponse> getRecommendations(String studentEmail) {
+        if (studentEmail == null || studentEmail.isBlank()) {
+            throw new BadRequestException("Student authentication is required to fetch recommendations.");
+        }
+
+        User user = userRepository.findByEmail(studentEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Student student = studentRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Student profile not found"));
+
+        if (student.getApprovalStatus() != ApprovalStatus.APPROVED) {
+            return Collections.emptyList();
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalTime currentTime = LocalTime.now();
+
+        // 1. Query upcoming published events
+        List<Event> upcomingEvents = eventRepository.findUpcomingPublishedEvents(today, currentTime);
+
+        // 2. Query student's active registrations (exclude cancelled)
+        Set<Long> registeredEventIds = Collections.emptySet();
+        if (registrationRepository != null) {
+            registeredEventIds = registrationRepository.findByStudentOrderByRegisteredAtDesc(student).stream()
+                    .filter(r -> r.getStatus() != RegistrationStatus.CANCELLED)
+                    .map(r -> r.getEvent().getId())
+                    .collect(Collectors.toSet());
+        }
+
+        final Set<Long> finalRegisteredEventIds = registeredEventIds;
+
+        // 3. Filter strictly: exclude registered, completed, cancelled, rejected, and ineligible events
+        return upcomingEvents.stream()
+                .filter(e -> !finalRegisteredEventIds.contains(e.getId()))
+                .filter(e -> e.getStatus() == EventStatus.PUBLISHED)
+                .filter(e -> e.getEventDate().isAfter(today) || (e.getEventDate().isEqual(today) && e.getEndTime().isAfter(currentTime)))
+                .filter(e -> checkStudentEligibility(e, student))
+                .sorted(Comparator.comparing(Event::getEventDate).thenComparing(Event::getStartTime))
+                .limit(6)
+                .map(e -> mapToEventResponse(e, student))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public EventResponse getEventById(Long id, String userEmail) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
@@ -451,15 +497,16 @@ public class EventService {
             EventResponse.ConflictingEventSummary summary = new EventResponse.ConflictingEventSummary(
                     c.getId(),
                     c.getTitle(),
-                    c.getVenue().getName(),
+                    c.getVenue() != null ? c.getVenue().getName() : "Unknown Venue",
                     c.getEventDate(),
                     c.getStartTime(),
                     c.getEndTime(),
-                    c.getOrganizer().getName()
+                    c.getOrganizer() != null ? c.getOrganizer().getName() : "Organizer"
             );
             result.put("conflictingEvent", summary);
+            String venueName = c.getVenue() != null ? c.getVenue().getName() : "this venue";
             result.put("warningMessage", "Venue conflict: another event ('" + c.getTitle() + "') is already scheduled at "
-                    + c.getVenue().getName() + " during this time slot (" + c.getStartTime() + " - " + c.getEndTime() + ").");
+                    + venueName + " during this time slot (" + c.getStartTime() + " - " + c.getEndTime() + ").");
         }
         return result;
     }
@@ -482,13 +529,15 @@ public class EventService {
         orgRes.setContactEmail(event.getOrganizer().getContactEmail());
         r.setOrganizer(orgRes);
 
-        r.setMaxCapacity(event.getMaxCapacity());
-        r.setRegisteredCount(event.getRegisteredCount());
-        int remaining = Math.max(0, event.getMaxCapacity() - event.getRegisteredCount());
+        int maxCap = event.getMaxCapacity() != null ? event.getMaxCapacity() : 0;
+        int regCount = event.getRegisteredCount() != null ? event.getRegisteredCount() : 0;
+        r.setMaxCapacity(maxCap);
+        r.setRegisteredCount(regCount);
+        int remaining = Math.max(0, maxCap - regCount);
         r.setRemainingSeats(remaining);
 
-        double pct = event.getMaxCapacity() > 0
-                ? Math.round(((double) event.getRegisteredCount() / event.getMaxCapacity()) * 1000.0) / 10.0
+        double pct = maxCap > 0
+                ? Math.round(((double) regCount / maxCap) * 1000.0) / 10.0
                 : 0.0;
         r.setCapacityPercentage(pct);
 
@@ -527,9 +576,9 @@ public class EventService {
 
         // Distinct registration state calculation: NOT_STARTED, OPEN, CLOSED
         String regState;
-        if (today.isBefore(event.getRegistrationStartDate())) {
+        if (event.getRegistrationStartDate() != null && today.isBefore(event.getRegistrationStartDate())) {
             regState = "NOT_STARTED";
-        } else if (today.isAfter(event.getRegistrationEndDate())) {
+        } else if (event.getRegistrationEndDate() != null && today.isAfter(event.getRegistrationEndDate())) {
             regState = "CLOSED";
         } else {
             regState = "OPEN";
@@ -548,31 +597,54 @@ public class EventService {
                 r.setEligibilityMessage("You are not eligible to register for this event.");
             }
 
-            Optional<Registration> regOpt = registrationRepository.findByEventIdAndStudentId(event.getId(), student.getId());
+            Optional<Registration> regOpt = registrationRepository != null
+                    ? registrationRepository.findByEventIdAndStudentId(event.getId(), student.getId())
+                    : Optional.empty();
             if (regOpt.isPresent() && regOpt.get().getStatus() != RegistrationStatus.CANCELLED) {
                 r.setRegistered(true);
                 r.setRegistrationStatus(regOpt.get().getStatus().name());
                 r.setActionStatus("REGISTERED");
-            } else if (event.getStatus() == EventStatus.CANCELLED) {
-                r.setActionStatus("CANCELLED");
-            } else if (event.getStatus() == EventStatus.PENDING_APPROVAL) {
-                r.setActionStatus("PENDING APPROVAL");
-            } else if (event.getStatus() == EventStatus.REJECTED) {
-                r.setActionStatus("REJECTED");
-            } else if (isPast) {
-                r.setActionStatus("COMPLETED");
-            } else if (!eligible) {
-                r.setActionStatus("NOT ELIGIBLE");
-            } else if (remaining <= 0) {
-                r.setActionStatus("FULL");
-            } else if ("NOT_STARTED".equals(regState)) {
-                r.setActionStatus("REGISTRATION NOT STARTED");
-            } else if ("CLOSED".equals(regState)) {
-                r.setActionStatus("REGISTRATION CLOSED");
+
+                Attendance att = null;
+                if (attendanceRepository != null) {
+                    att = attendanceRepository.findByEventIdAndStudentId(event.getId(), student.getId()).orElse(null);
+                }
+                String attState = AttendanceService.determineAttendanceState(event, att, LocalDateTime.now());
+                r.setAttendanceState(attState);
+                r.setStudentAttendanceStatus(att != null && att.getStatus() == AttendanceStatus.PRESENT ? "PRESENT" : "ABSENT");
+                r.setCheckInAllowed("CHECK_IN_OPEN".equals(attState) && event.isAttendanceActive() && (att == null || att.getStatus() != AttendanceStatus.PRESENT));
             } else {
-                r.setActionStatus("REGISTER NOW");
+                String attState = AttendanceService.determineAttendanceState(event, null, LocalDateTime.now());
+                r.setAttendanceState(attState);
+                r.setStudentAttendanceStatus("ABSENT");
+                r.setCheckInAllowed(false);
+
+                if (event.getStatus() == EventStatus.CANCELLED) {
+                    r.setActionStatus("CANCELLED");
+                } else if (event.getStatus() == EventStatus.PENDING_APPROVAL) {
+                    r.setActionStatus("PENDING APPROVAL");
+                } else if (event.getStatus() == EventStatus.REJECTED) {
+                    r.setActionStatus("REJECTED");
+                } else if (isPast) {
+                    r.setActionStatus("COMPLETED");
+                } else if (!eligible) {
+                    r.setActionStatus("NOT ELIGIBLE");
+                } else if (remaining <= 0) {
+                    r.setActionStatus("FULL");
+                } else if ("NOT_STARTED".equals(regState)) {
+                    r.setActionStatus("REGISTRATION NOT STARTED");
+                } else if ("CLOSED".equals(regState)) {
+                    r.setActionStatus("REGISTRATION CLOSED");
+                } else {
+                    r.setActionStatus("REGISTER NOW");
+                }
             }
         } else {
+            String attState = AttendanceService.determineAttendanceState(event, null, LocalDateTime.now());
+            r.setAttendanceState(attState);
+            r.setStudentAttendanceStatus("ABSENT");
+            r.setCheckInAllowed(false);
+
             if (event.getStatus() == EventStatus.CANCELLED) {
                 r.setActionStatus("CANCELLED");
             } else if (event.getStatus() == EventStatus.PENDING_APPROVAL) {

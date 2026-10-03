@@ -22,6 +22,10 @@ public class RegistrationResponse {
     private String section;
     private RegistrationStatus status;
     private String attendanceStatus;
+    private String attendanceState;
+    private boolean checkInAllowed;
+    private LocalDateTime checkInOpensAt;
+    private LocalDateTime checkInClosesAt;
     private LocalDateTime registeredAt;
 
     public RegistrationResponse() {}
@@ -74,6 +78,18 @@ public class RegistrationResponse {
 
     public String getAttendanceStatus() { return attendanceStatus; }
     public void setAttendanceStatus(String attendanceStatus) { this.attendanceStatus = attendanceStatus; }
+
+    public String getAttendanceState() { return attendanceState; }
+    public void setAttendanceState(String attendanceState) { this.attendanceState = attendanceState; }
+
+    public boolean isCheckInAllowed() { return checkInAllowed; }
+    public void setCheckInAllowed(boolean checkInAllowed) { this.checkInAllowed = checkInAllowed; }
+
+    public LocalDateTime getCheckInOpensAt() { return checkInOpensAt; }
+    public void setCheckInOpensAt(LocalDateTime checkInOpensAt) { this.checkInOpensAt = checkInOpensAt; }
+
+    public LocalDateTime getCheckInClosesAt() { return checkInClosesAt; }
+    public void setCheckInClosesAt(LocalDateTime checkInClosesAt) { this.checkInClosesAt = checkInClosesAt; }
 
     public LocalDateTime getRegisteredAt() { return registeredAt; }
     public void setRegisteredAt(LocalDateTime registeredAt) { this.registeredAt = registeredAt; }

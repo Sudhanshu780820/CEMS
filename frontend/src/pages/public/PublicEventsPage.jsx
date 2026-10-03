@@ -18,6 +18,8 @@ import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
+import EventDateBlock from '../../components/common/EventDateBlock';
+import { formatDate, formatTime, formatDateTime, formatTimeRange } from '../../utils/dateUtils';
 import { useAuth } from '../../context/AuthContext';
 
 export default function PublicEventsPage() {
@@ -222,25 +224,28 @@ export default function PublicEventsPage() {
 
                   {/* Body Content */}
                   <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                    <div className="space-y-2">
-                      <h3 className="text-base font-bold text-white group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug">
-                        {event.title}
-                      </h3>
-                      <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                        {event.description}
-                      </p>
+                    <div className="flex items-start gap-3">
+                      <EventDateBlock date={event.eventDate} />
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-white group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug">
+                          {event.title}
+                        </h3>
+                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                          {event.description}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Event Metadata details */}
                     <div className="space-y-2 text-xs text-slate-300 border-t border-slate-800/60 pt-3">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                        <span>{new Date(event.eventDate).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        <span>{formatDate(event.eventDate)}</span>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                        <span>{event.startTime} - {event.endTime}</span>
+                        <span>{formatTimeRange(event.startTime, event.endTime)}</span>
                       </div>
 
                       <div className="flex items-center gap-2">

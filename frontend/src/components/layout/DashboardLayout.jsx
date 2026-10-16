@@ -124,6 +124,7 @@ export default function DashboardLayout({ children }) {
     { label: 'Dashboard', path: '/organizer/dashboard', icon: LayoutDashboard },
     { label: 'My Events', path: '/organizer/events', icon: Calendar },
     { label: 'Create Event', path: '/organizer/events/create', icon: CalendarPlus },
+    { label: 'Campus Venues', path: '/organizer/venues', icon: Building2 },
   ];
 
   const studentLinks = [

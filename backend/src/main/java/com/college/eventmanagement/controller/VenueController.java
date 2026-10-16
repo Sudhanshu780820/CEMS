@@ -25,26 +25,26 @@ public class VenueController {
         return ResponseEntity.ok(venueService.getActiveVenues());
     }
 
-    @GetMapping("/admin/venues")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @GetMapping({"/admin/venues", "/organizer/venues"})
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_ORGANIZER')")
     public ResponseEntity<List<VenueResponse>> getAllVenues() {
         return ResponseEntity.ok(venueService.getAllVenues());
     }
 
-    @PostMapping("/admin/venues")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PostMapping({"/admin/venues", "/organizer/venues"})
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_ORGANIZER')")
     public ResponseEntity<VenueResponse> createVenue(@Valid @RequestBody VenueRequest request) {
         return ResponseEntity.ok(venueService.createVenue(request));
     }
 
-    @PutMapping("/admin/venues/{id}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PutMapping({"/admin/venues/{id}", "/organizer/venues/{id}"})
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_ORGANIZER')")
     public ResponseEntity<VenueResponse> updateVenue(@PathVariable Long id, @Valid @RequestBody VenueRequest request) {
         return ResponseEntity.ok(venueService.updateVenue(id, request));
     }
 
-    @DeleteMapping("/admin/venues/{id}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @DeleteMapping({"/admin/venues/{id}", "/organizer/venues/{id}"})
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_ORGANIZER')")
     public ResponseEntity<Void> deleteVenue(@PathVariable Long id) {
         venueService.deleteVenue(id);
         return ResponseEntity.noContent().build();

@@ -10,6 +10,7 @@ import com.college.eventmanagement.exception.ConflictException;
 import com.college.eventmanagement.exception.ResourceNotFoundException;
 import com.college.eventmanagement.repository.*;
 import com.college.eventmanagement.util.DateTimeUtil;
+import com.college.eventmanagement.util.GeoUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -217,6 +218,26 @@ public class AttendanceService {
         // 6. Verify token matches
         if (event.getAttendanceToken() == null || !event.getAttendanceToken().equals(request.getAttendanceToken().trim())) {
             throw new BadRequestException("Invalid or expired attendance QR code.");
+        }
+
+        // 7. Validate GPS Geofencing (300-meter radius check)
+        Venue venue = event.getVenue();
+        if (venue == null || venue.getLatitude() == null || venue.getLongitude() == null) {
+            throw new BadRequestException("Location verification is not configured for this venue. Please contact the event organizer.");
+        }
+
+        if (request.getLatitude() == null || request.getLongitude() == null
+                || !GeoUtil.isValidCoordinate(request.getLatitude(), request.getLongitude())) {
+            throw new BadRequestException("Valid GPS coordinates are required for attendance verification.");
+        }
+
+        double distance = GeoUtil.calculateDistanceMeters(
+                venue.getLatitude(), venue.getLongitude(),
+                request.getLatitude(), request.getLongitude()
+        );
+
+        if (distance > GeoUtil.ATTENDANCE_GEOFENCE_RADIUS_METERS) {
+            throw new BadRequestException("You are outside the permitted 300-meter attendance area. Please move closer to the event venue and try again.");
         }
 
         Attendance attendance;

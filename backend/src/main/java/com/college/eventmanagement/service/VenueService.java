@@ -3,9 +3,11 @@ package com.college.eventmanagement.service;
 import com.college.eventmanagement.dto.VenueRequest;
 import com.college.eventmanagement.dto.VenueResponse;
 import com.college.eventmanagement.entity.Venue;
+import com.college.eventmanagement.exception.BadRequestException;
 import com.college.eventmanagement.exception.ConflictException;
 import com.college.eventmanagement.exception.ResourceNotFoundException;
 import com.college.eventmanagement.repository.VenueRepository;
+import com.college.eventmanagement.util.GeoUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +58,14 @@ public class VenueService {
                 request.getDescription()
         );
 
+        if (request.getLatitude() != null || request.getLongitude() != null) {
+            if (!GeoUtil.isValidCoordinate(request.getLatitude(), request.getLongitude())) {
+                throw new BadRequestException("Invalid venue coordinates. Latitude must be between -90 and 90, and longitude between -180 and 180.");
+            }
+            venue.setLatitude(request.getLatitude());
+            venue.setLongitude(request.getLongitude());
+        }
+
         return mapToResponse(venueRepository.save(venue));
     }
 
@@ -69,6 +79,14 @@ public class VenueService {
         venue.setRoomNumber(request.getRoomNumber().trim());
         venue.setCapacity(request.getCapacity());
         venue.setDescription(request.getDescription());
+
+        if (request.getLatitude() != null || request.getLongitude() != null) {
+            if (!GeoUtil.isValidCoordinate(request.getLatitude(), request.getLongitude())) {
+                throw new BadRequestException("Invalid venue coordinates. Latitude must be between -90 and 90, and longitude between -180 and 180.");
+            }
+            venue.setLatitude(request.getLatitude());
+            venue.setLongitude(request.getLongitude());
+        }
 
         return mapToResponse(venueRepository.save(venue));
     }
@@ -90,7 +108,9 @@ public class VenueService {
                 venue.getRoomNumber(),
                 venue.getCapacity(),
                 venue.getDescription(),
-                venue.isActive()
+                venue.isActive(),
+                venue.getLatitude(),
+                venue.getLongitude()
         );
     }
 }

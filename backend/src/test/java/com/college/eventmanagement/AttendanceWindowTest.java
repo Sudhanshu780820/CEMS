@@ -102,6 +102,8 @@ public class AttendanceWindowTest {
         venue1.setBuilding("Academic Complex");
         venue1.setCapacity(250);
         venue1.setActive(true);
+        venue1.setLatitude(28.5450);
+        venue1.setLongitude(77.1926);
 
         venue2 = new Venue();
         venue2.setId(2L);
@@ -109,6 +111,8 @@ public class AttendanceWindowTest {
         venue2.setBuilding("IT Block");
         venue2.setCapacity(60);
         venue2.setActive(true);
+        venue2.setLatitude(28.5455);
+        venue2.setLongitude(77.1930);
 
         // Standard event on 2026-10-10, 10:00 to 12:00
         standardEvent = new Event();
@@ -430,7 +434,7 @@ public class AttendanceWindowTest {
     void test01_studentChecksInBeforeEventStart_Rejected() {
         // Event start is 2026-10-10 10:00:00
         LocalDateTime beforeStart = LocalDateTime.of(2026, 10, 10, 9, 59, 59);
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
 
         BadRequestException ex = assertThrows(BadRequestException.class, () ->
                 attendanceService.markAttendanceViaQr(standardEvent.getId(), req, "student@college.edu", beforeStart)
@@ -446,7 +450,7 @@ public class AttendanceWindowTest {
     @DisplayName("2. Student checks in exactly at event start -> Allowed (PRESENT)")
     void test02_studentChecksInExactlyAtEventStart_Allowed() {
         LocalDateTime exactStart = LocalDateTime.of(2026, 10, 10, 10, 0, 0);
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
 
         AttendanceResponse res = attendanceService.markAttendanceViaQr(standardEvent.getId(), req, "student@college.edu", exactStart);
 
@@ -459,7 +463,7 @@ public class AttendanceWindowTest {
     @DisplayName("3. Student checks in during event -> Allowed (PRESENT)")
     void test03_studentChecksInDuringEvent_Allowed() {
         LocalDateTime duringEvent = LocalDateTime.of(2026, 10, 10, 11, 0, 0);
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
 
         AttendanceResponse res = attendanceService.markAttendanceViaQr(standardEvent.getId(), req, "student@college.edu", duringEvent);
 
@@ -471,7 +475,7 @@ public class AttendanceWindowTest {
     @DisplayName("4. Student checks in exactly at event end -> Allowed (PRESENT)")
     void test04_studentChecksInExactlyAtEventEnd_Allowed() {
         LocalDateTime exactEnd = LocalDateTime.of(2026, 10, 10, 12, 0, 0);
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
 
         AttendanceResponse res = attendanceService.markAttendanceViaQr(standardEvent.getId(), req, "student@college.edu", exactEnd);
 
@@ -483,7 +487,7 @@ public class AttendanceWindowTest {
     @DisplayName("5. Student checks in 1 hour after event end (within 24-hr grace) -> Allowed (PRESENT)")
     void test05_studentChecksInWithin24HourGracePeriod_Allowed() {
         LocalDateTime oneHourAfterEnd = LocalDateTime.of(2026, 10, 10, 13, 0, 0);
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
 
         AttendanceResponse res = attendanceService.markAttendanceViaQr(standardEvent.getId(), req, "student@college.edu", oneHourAfterEnd);
 
@@ -496,7 +500,7 @@ public class AttendanceWindowTest {
     void test06_studentChecksInExactlyAtGracePeriodBoundary_Allowed() {
         // End is 2026-10-10 12:00:00 -> grace period end is 2026-10-11 12:00:00
         LocalDateTime graceBoundary = LocalDateTime.of(2026, 10, 11, 12, 0, 0);
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
 
         AttendanceResponse res = attendanceService.markAttendanceViaQr(standardEvent.getId(), req, "student@college.edu", graceBoundary);
 
@@ -508,7 +512,7 @@ public class AttendanceWindowTest {
     @DisplayName("7. Student checks in 1 second after grace period -> Rejected with HTTP 400")
     void test07_studentChecksInAfterGracePeriod_Rejected() {
         LocalDateTime afterGrace = LocalDateTime.of(2026, 10, 11, 12, 0, 1);
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
 
         BadRequestException ex = assertThrows(BadRequestException.class, () ->
                 attendanceService.markAttendanceViaQr(standardEvent.getId(), req, "student@college.edu", afterGrace)
@@ -525,7 +529,7 @@ public class AttendanceWindowTest {
         existing.setCheckInTime(LocalDateTime.of(2026, 10, 10, 10, 15, 0));
         repoAttendances.add(existing);
 
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
         LocalDateTime during = LocalDateTime.of(2026, 10, 10, 11, 0, 0);
 
         ConflictException ex = assertThrows(ConflictException.class, () ->
@@ -539,7 +543,7 @@ public class AttendanceWindowTest {
     @DisplayName("9. Unregistered student attempts check-in -> Rejected with HTTP 400")
     void test09_unregisteredStudentAttemptsCheckIn_Rejected() {
         repoRegistrations.clear(); // No registration for student
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
         LocalDateTime during = LocalDateTime.of(2026, 10, 10, 11, 0, 0);
 
         BadRequestException ex = assertThrows(BadRequestException.class, () ->
@@ -1125,7 +1129,7 @@ public class AttendanceWindowTest {
         existing.setCheckInTime(LocalDateTime.of(2026, 10, 10, 10, 5, 0));
         repoAttendances.add(existing);
 
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
         LocalDateTime laterTime = LocalDateTime.of(2026, 10, 10, 10, 30, 0);
 
         // Attempting to check in again
@@ -1146,7 +1150,7 @@ public class AttendanceWindowTest {
         existing.setCheckInTime(originalCheckIn);
         repoAttendances.add(existing);
 
-        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123");
+        AttendanceMarkRequest req = new AttendanceMarkRequest("VALID-QR-TOKEN-123", 28.5450, 77.1926);
         LocalDateTime repeatedCheckIn = LocalDateTime.of(2026, 10, 10, 11, 45, 0);
 
         assertThrows(ConflictException.class, () ->

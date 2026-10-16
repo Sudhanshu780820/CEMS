@@ -26,6 +26,12 @@ public class Venue {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
@@ -44,6 +50,12 @@ public class Venue {
         this.capacity = capacity;
         this.description = description;
         this.isActive = true;
+    }
+
+    public Venue(String name, String building, String roomNumber, Integer capacity, String description, Double latitude, Double longitude) {
+        this(name, building, roomNumber, capacity, description);
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     @PrePersist
@@ -75,6 +87,12 @@ public class Venue {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public Double getLatitude() { return latitude; }
+    public void setLatitude(Double latitude) { this.latitude = latitude; }
+
+    public Double getLongitude() { return longitude; }
+    public void setLongitude(Double longitude) { this.longitude = longitude; }
 
     public boolean isActive() { return isActive; }
     public void setActive(boolean active) { isActive = active; }

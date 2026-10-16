@@ -78,16 +78,16 @@ public class DataInitializer implements CommandLineRunner {
         organizerRepository.save(organizer2);
 
         // 3. Venues
-        Venue auditorium = new Venue("APJ Abdul Kalam Auditorium", "Central Academic Block", "AUD-101", 250, "Air-conditioned grand hall with 4K projector and sound system");
+        Venue auditorium = new Venue("APJ Abdul Kalam Auditorium", "Central Academic Block", "AUD-101", 250, "Air-conditioned grand hall with 4K projector and sound system", 28.5450, 77.1926);
         venueRepository.save(auditorium);
 
-        Venue seminarHall = new Venue("Sir CV Raman Seminar Hall", "Tech Block B", "ST-204", 80, "Tiered seminar hall equipped for hybrid conferences and workshops");
+        Venue seminarHall = new Venue("Sir CV Raman Seminar Hall", "Tech Block B", "ST-204", 80, "Tiered seminar hall equipped for hybrid conferences and workshops", 28.5455, 77.1930);
         venueRepository.save(seminarHall);
 
-        Venue compLab = new Venue("Advanced Computing Lab 3", "IT Innovation Center", "LAB-302", 40, "High-performance workstation lab with dual displays");
+        Venue compLab = new Venue("Advanced Computing Lab 3", "IT Innovation Center", "LAB-302", 40, "High-performance workstation lab with dual displays", 28.5448, 77.1935);
         venueRepository.save(compLab);
 
-        Venue amphitheatre = new Venue("Open Air Amphitheatre", "Campus Greens", "OAA-01", 500, "Spacious outdoor stage for cultural festivals and ceremonies");
+        Venue amphitheatre = new Venue("Open Air Amphitheatre", "Campus Greens", "OAA-01", 500, "Spacious outdoor stage for cultural festivals and ceremonies", 28.5460, 77.1920);
         venueRepository.save(amphitheatre);
 
         // 4. Students

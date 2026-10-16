@@ -76,6 +76,12 @@ public class RegistrationService {
                     + event.getRegistrationEndDate() + ".");
         }
 
+        LocalDateTime now = DateTimeUtil.now();
+        LocalDateTime eventEnd = LocalDateTime.of(event.getEventDate(), event.getEndTime());
+        if (event.getStatus() == EventStatus.COMPLETED || now.isAfter(eventEnd)) {
+            throw new BadRequestException("Registration is closed because the event has already ended.");
+        }
+
         // 4. Verify student eligibility (Double-checked on backend!)
         if (!eventService.checkStudentEligibility(event, student)) {
             throw new BadRequestException("You are not eligible to register for this event.");

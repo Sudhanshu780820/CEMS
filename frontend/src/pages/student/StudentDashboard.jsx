@@ -10,7 +10,8 @@ import {
   ArrowRight,
   GraduationCap,
   Sparkles,
-  Award
+  Award,
+  ChevronRight
 } from 'lucide-react';
 import api from '../../api/client';
 import DashboardLayout from '../../components/layout/DashboardLayout';
@@ -22,6 +23,7 @@ import EmptyState from '../../components/common/EmptyState';
 import QrScannerModal from '../../components/qr/QrScannerModal';
 import EventDateBlock from '../../components/common/EventDateBlock';
 import { formatDate, formatTime, formatDateTime } from '../../utils/dateUtils';
+import { getEventRegistrationStatus } from '../../utils/eventUtils';
 import { useAuth } from '../../context/AuthContext';
 
 export default function StudentDashboard() {
@@ -254,7 +256,16 @@ export default function StudentDashboard() {
                 return (
                   <div
                     key={reg.id}
-                    className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/events/${reg.eventId}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/events/${reg.eventId}`);
+                      }
+                    }}
+                    className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col justify-between space-y-4 hover:border-slate-700 hover:shadow-lg transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <div className="flex items-start gap-3.5">
                       <EventDateBlock date={reg.eventDate} />
@@ -309,7 +320,8 @@ export default function StudentDashboard() {
                           variant="primary"
                           size="sm"
                           icon={QrCode}
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelectedEventForScan({ id: reg.eventId, title: reg.eventTitle, venue: { name: reg.venueName } });
                           }}
                         >
@@ -337,45 +349,63 @@ export default function StudentDashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {upcomingEvents.map((e) => (
-              <div
-                key={e.id}
-                className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:border-slate-700 transition-all p-4 space-y-3"
-              >
-                <div className="flex items-start gap-3">
-                  <EventDateBlock date={e.eventDate} size="sm" />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-indigo-300 px-2 py-0.5 rounded bg-indigo-950 border border-indigo-800/60">
-                        {e.category}
-                      </span>
-                      <Badge variant={e.eligible ? 'success' : 'danger'} size="sm">
-                        {e.eligible ? 'Eligible' : 'Not Eligible'}
-                      </Badge>
+            {upcomingEvents.map((e) => {
+              const regStatus = getEventRegistrationStatus(e);
+
+              return (
+                <div
+                  key={e.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/events/${e.id}`)}
+                  onKeyDown={(evt) => {
+                    if (evt.key === 'Enter' || evt.key === ' ') {
+                      evt.preventDefault();
+                      navigate(`/events/${e.id}`);
+                    }
+                  }}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:border-slate-700 hover:shadow-xl hover:shadow-indigo-500/5 transition-all p-4 space-y-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <div className="flex items-start gap-3">
+                    <EventDateBlock date={e.eventDate} size="sm" />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex justify-between items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-indigo-300 px-2 py-0.5 rounded bg-indigo-950 border border-indigo-800/60 shrink-0">
+                          {e.category}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold truncate ${regStatus.badgeClass}`}>
+                          {regStatus.label}
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-white line-clamp-1">
+                        {e.title}
+                      </h4>
+                      <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">{e.description}</p>
                     </div>
-                    <h4 className="text-sm font-bold text-white line-clamp-1">{e.title}</h4>
-                    <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">{e.description}</p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 text-xs text-slate-400 space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span>{formatTime(e.startTime)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span className="truncate text-slate-300">{e.venue?.name}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <div
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors select-none ${regStatus.btnClass}`}
+                    >
+                      <span>{regStatus.label}</span>
+                      {regStatus.state === 'OPEN' && <ChevronRight className="w-3.5 h-3.5" />}
+                    </div>
                   </div>
                 </div>
-
-                <div className="pt-2 border-t border-slate-800 text-xs text-slate-400 space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                    <span>{formatTime(e.startTime)}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                    <span className="truncate text-slate-300">{e.venue?.name}</span>
-                  </div>
-                </div>
-
-                <Link to={`/events/${e.id}`}>
-                  <Button variant="secondary" size="sm" className="w-full">
-                    {e.registered ? 'REGISTERED' : 'VIEW EVENT'}
-                  </Button>
-                </Link>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

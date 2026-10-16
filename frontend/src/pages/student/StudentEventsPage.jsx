@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Calendar,
   Clock,
@@ -20,9 +20,11 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import EventDateBlock from '../../components/common/EventDateBlock';
 import { formatDate, formatTime, formatDateTime } from '../../utils/dateUtils';
+import { getEventRegistrationStatus } from '../../utils/eventUtils';
 import { useAuth } from '../../context/AuthContext';
 
 export default function StudentEventsPage() {
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,17 +143,27 @@ export default function StudentEventsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredEvents.map((event) => {
               const capacityPct = Math.min(100, Math.round((event.registeredCount / event.maxCapacity) * 100));
+              const regStatus = getEventRegistrationStatus(event);
 
               return (
                 <div
                   key={event.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-all flex flex-col justify-between"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/events/${event.id}`)}
+                  onKeyDown={(evt) => {
+                    if (evt.key === 'Enter' || evt.key === ' ') {
+                      evt.preventDefault();
+                      navigate(`/events/${event.id}`);
+                    }
+                  }}
+                  className="group bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 hover:shadow-xl hover:shadow-indigo-500/5 transition-all flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <div className="relative h-40 w-full bg-slate-950">
                     <img
                       src={event.eventImageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80'}
                       alt={event.title}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute top-3 left-3">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900/90 text-indigo-300 backdrop-blur-md border border-indigo-500/30">
@@ -160,17 +172,9 @@ export default function StudentEventsPage() {
                     </div>
 
                     <div className="absolute top-3 right-3">
-                      <Badge
-                        variant={
-                          event.registered ? 'purple' :
-                          event.actionStatus === 'REGISTER NOW' ? 'success' :
-                          event.actionStatus === 'REGISTRATION NOT STARTED' ? 'warning' :
-                          'default'
-                        }
-                        size="sm"
-                      >
-                        {event.registered ? 'REGISTERED' : event.actionStatus}
-                      </Badge>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md ${regStatus.badgeClass}`}>
+                        {regStatus.label}
+                      </span>
                     </div>
                   </div>
 
@@ -178,7 +182,9 @@ export default function StudentEventsPage() {
                     <div className="flex items-start gap-3">
                       <EventDateBlock date={event.eventDate} />
                       <div className="space-y-1 flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-white line-clamp-1">{event.title}</h3>
+                        <h3 className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors line-clamp-1">
+                          {event.title}
+                        </h3>
                         <p className="text-xs text-slate-400 line-clamp-2">{event.description}</p>
                       </div>
                     </div>
@@ -225,17 +231,15 @@ export default function StudentEventsPage() {
                       </div>
                     </div>
 
-                    {/* CTA */}
-                    <Link to={`/events/${event.id}`}>
-                      <Button
-                        variant={!event.registered && event.actionStatus === 'REGISTER NOW' ? 'primary' : 'secondary'}
-                        size="sm"
-                        className="w-full justify-between"
+                    {/* Registration Status Action Pill */}
+                    <div className="pt-2">
+                      <div
+                        className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors select-none ${regStatus.btnClass}`}
                       >
-                        <span>{event.registered ? 'REGISTERED' : event.actionStatus}</span>
+                        <span>{regStatus.label}</span>
                         <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    </Link>
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

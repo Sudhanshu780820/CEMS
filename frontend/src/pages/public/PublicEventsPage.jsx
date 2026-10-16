@@ -20,6 +20,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import EventDateBlock from '../../components/common/EventDateBlock';
 import { formatDate, formatTime, formatDateTime, formatTimeRange } from '../../utils/dateUtils';
+import { getEventRegistrationStatus } from '../../utils/eventUtils';
 import { useAuth } from '../../context/AuthContext';
 
 export default function PublicEventsPage() {
@@ -184,12 +185,21 @@ export default function PublicEventsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredEvents.map((event) => {
               const capacityPct = Math.min(100, Math.round((event.registeredCount / event.maxCapacity) * 100));
-              const isFull = event.remainingSeats <= 0;
+              const regStatus = getEventRegistrationStatus(event);
 
               return (
                 <div
                   key={event.id}
-                  className="group bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-slate-700 transition-all duration-200 flex flex-col hover:shadow-xl hover:shadow-indigo-500/5"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/events/${event.id}`)}
+                  onKeyDown={(evt) => {
+                    if (evt.key === 'Enter' || evt.key === ' ') {
+                      evt.preventDefault();
+                      navigate(`/events/${event.id}`);
+                    }
+                  }}
+                  className="group bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-slate-700 transition-all duration-200 flex flex-col hover:shadow-xl hover:shadow-indigo-500/5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {/* Event Image Banner */}
                   <div className="relative h-44 w-full bg-slate-950 overflow-hidden">
@@ -209,16 +219,9 @@ export default function PublicEventsPage() {
 
                     {/* Action Status Top Right */}
                     <div className="absolute top-3 right-3">
-                      <Badge
-                        variant={
-                          event.actionStatus === 'REGISTER NOW' ? 'success' :
-                          event.actionStatus === 'REGISTRATION NOT STARTED' ? 'warning' :
-                          event.actionStatus === 'ALREADY REGISTERED' ? 'purple' : 'default'
-                        }
-                        size="sm"
-                      >
-                        {event.actionStatus || (isFull ? 'FULL' : 'REGISTER NOW')}
-                      </Badge>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md ${regStatus.badgeClass}`}>
+                        {regStatus.label}
+                      </span>
                     </div>
                   </div>
 
@@ -311,16 +314,12 @@ export default function PublicEventsPage() {
 
                     {/* Card Footer CTA */}
                     <div className="pt-2">
-                      <Link to={`/events/${event.id}`}>
-                        <Button
-                          variant={event.actionStatus === 'REGISTER NOW' ? 'primary' : 'secondary'}
-                          size="sm"
-                          className="w-full justify-between"
-                        >
-                          <span>{event.actionStatus || 'View Details'}</span>
-                          <ChevronRight className="w-4 h-4" />
-                        </Button>
-                      </Link>
+                      <div
+                        className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors select-none ${regStatus.btnClass}`}
+                      >
+                        <span>{regStatus.label}</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -281,6 +281,9 @@ public class EventService {
                     endDate,
                     (query != null && !query.isBlank()) ? query.trim() : null
             );
+            events = events.stream()
+                    .sorted(Comparator.comparing(Event::getEventDate).thenComparing(Event::getStartTime))
+                    .collect(Collectors.toList());
         } else {
             // Students & unauthenticated public: strictly upcoming published events whose end time hasn't passed!
             events = eventRepository.searchUpcomingPublishedEvents(
@@ -296,6 +299,25 @@ public class EventService {
         final Student finalStudent = student;
         return events.stream()
                 .map(e -> mapToEventResponse(e, finalStudent))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventResponse> getAllEventsForAdmin(String query, String category,
+                                                    LocalDate startDate, LocalDate endDate,
+                                                    EventStatus status) {
+        List<Event> events = eventRepository.searchEvents(
+                status,
+                (category != null && !category.isBlank()) ? category.trim() : null,
+                startDate,
+                endDate,
+                (query != null && !query.isBlank()) ? query.trim() : null
+        );
+
+        // Authoritatively sort: 1. eventDate ASC, 2. startTime ASC
+        return events.stream()
+                .sorted(Comparator.comparing(Event::getEventDate).thenComparing(Event::getStartTime))
+                .map(e -> mapToEventResponse(e, null))
                 .collect(Collectors.toList());
     }
 
@@ -335,7 +357,7 @@ public class EventService {
         // 3. Filter strictly: exclude registered, completed, cancelled, rejected, and ineligible events
         return upcomingEvents.stream()
                 .filter(e -> !finalRegisteredEventIds.contains(e.getId()))
-                .filter(e -> e.getStatus() == EventStatus.PUBLISHED)
+                .filter(e -> e.getStatus() == EventStatus.PUBLISHED && e.getStatus() != EventStatus.COMPLETED)
                 .filter(e -> e.getEventDate().isAfter(today) || (e.getEventDate().isEqual(today) && e.getEndTime().isAfter(currentTime)))
                 .filter(e -> checkStudentEligibility(e, student))
                 .sorted(Comparator.comparing(Event::getEventDate).thenComparing(Event::getStartTime))

@@ -19,7 +19,7 @@ export default function AdminEventManagementPage() {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/events');
+      const res = await api.get('/admin/events').catch(() => api.get('/events'));
       setEvents(res.data || []);
     } catch (err) {
       toast.error('Failed to load events catalog');
@@ -46,11 +46,21 @@ export default function AdminEventManagementPage() {
     }
   };
 
-  const filteredEvents = events.filter((e) =>
-    e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.venue?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.organizer?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Strictly maintain ascending chronological order: 1. eventDate ASC, 2. startTime ASC
+  const filteredEvents = events
+    .filter((e) =>
+      e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.venue?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.organizer?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (a.eventDate !== b.eventDate) {
+        return a.eventDate.localeCompare(b.eventDate);
+      }
+      const timeA = a.startTime || '00:00:00';
+      const timeB = b.startTime || '00:00:00';
+      return timeA.localeCompare(timeB);
+    });
 
   return (
     <DashboardLayout>

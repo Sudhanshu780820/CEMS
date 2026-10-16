@@ -2,13 +2,16 @@ package com.college.eventmanagement.controller;
 
 import com.college.eventmanagement.dto.*;
 import com.college.eventmanagement.entity.ApprovalStatus;
+import com.college.eventmanagement.entity.EventStatus;
 import com.college.eventmanagement.service.AdminService;
 import com.college.eventmanagement.service.EventService;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -84,6 +87,16 @@ public class AdminController {
     @GetMapping("/reports")
     public ResponseEntity<AdminReportsResponse> getReports() {
         return ResponseEntity.ok(adminService.getReports());
+    }
+
+    @GetMapping("/events")
+    public ResponseEntity<List<EventResponse>> getAllEvents(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) EventStatus status) {
+        return ResponseEntity.ok(eventService.getAllEventsForAdmin(query, category, startDate, endDate, status));
     }
 
     @GetMapping("/events/pending")

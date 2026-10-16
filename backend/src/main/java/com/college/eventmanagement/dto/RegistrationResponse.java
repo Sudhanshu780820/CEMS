@@ -27,6 +27,7 @@ public class RegistrationResponse {
     private LocalDateTime checkInOpensAt;
     private LocalDateTime checkInClosesAt;
     private LocalDateTime registeredAt;
+    private boolean canCancel = true;
 
     public RegistrationResponse() {}
 
@@ -93,4 +94,7 @@ public class RegistrationResponse {
 
     public LocalDateTime getRegisteredAt() { return registeredAt; }
     public void setRegisteredAt(LocalDateTime registeredAt) { this.registeredAt = registeredAt; }
+
+    public boolean isCanCancel() { return canCancel; }
+    public void setCanCancel(boolean canCancel) { this.canCancel = canCancel; }
 }

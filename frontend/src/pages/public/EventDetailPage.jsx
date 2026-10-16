@@ -78,6 +78,11 @@ export default function EventDetailPage() {
   };
 
   const handleCancelRegistration = async () => {
+    if (event?.canCancelRegistration === false || event?.cancelAllowed === false) {
+      toast.error('Registration cannot be cancelled because the event has already started or ended.');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to cancel your event registration? Your reserved seat will be released.')) {
       return;
     }
@@ -105,9 +110,16 @@ export default function EventDetailPage() {
     );
   }
 
-  if (!event) return null;
-
   const capacityPct = Math.min(100, Math.round((event.registeredCount / event.maxCapacity) * 100));
+
+  const now = Date.now();
+  const eventStart = new Date(`${event.eventDate}T${event.startTime || '00:00:00'}`).getTime();
+  const eventEnd = new Date(`${event.eventDate}T${event.endTime || '23:59:59'}`).getTime();
+  const isPast = event.status === 'COMPLETED' || event.actionStatus === 'COMPLETED' || now >= eventEnd;
+  const hasStarted = now >= eventStart;
+  const isCancelAllowed = event.canCancelRegistration !== undefined
+    ? event.canCancelRegistration
+    : (event.cancelAllowed !== undefined ? event.cancelAllowed : (!isPast && !hasStarted && event.status !== 'CANCELLED'));
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
@@ -353,15 +365,32 @@ export default function EventDetailPage() {
                         </div>
                       )}
 
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        className="w-full"
-                        loading={cancelling}
-                        onClick={handleCancelRegistration}
-                      >
-                        Cancel My Registration
-                      </Button>
+                      {/* Cancellation Action */}
+                      {isCancelAllowed ? (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          className="w-full"
+                          loading={cancelling}
+                          onClick={handleCancelRegistration}
+                        >
+                          Cancel My Registration
+                        </Button>
+                      ) : (
+                        <div className="space-y-1.5 pt-1">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-full cursor-not-allowed opacity-40 filter blur-[0.5px] bg-slate-900/60 border border-slate-800 text-slate-500 pointer-events-none select-none"
+                            disabled
+                          >
+                            Cancel My Registration
+                          </Button>
+                          <p className="text-[11px] text-center text-slate-500 italic">
+                            Cancellation is closed because the event has {isPast ? 'ended' : 'started'}.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ) : !event.eligible ? (
                     <Button variant="secondary" className="w-full cursor-not-allowed opacity-75" disabled>

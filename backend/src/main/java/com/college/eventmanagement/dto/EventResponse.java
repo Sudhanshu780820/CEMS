@@ -46,6 +46,9 @@ public class EventResponse {
     private ConflictingEventSummary conflictingEvent;
     private String conflictNotes;
 
+    // Registration cancellation policy
+    private boolean canCancelRegistration = false;
+
     public EventResponse() {}
 
     // Getters and Setters
@@ -156,6 +159,11 @@ public class EventResponse {
 
     public String getConflictNotes() { return conflictNotes; }
     public void setConflictNotes(String conflictNotes) { this.conflictNotes = conflictNotes; }
+
+    public boolean isCanCancelRegistration() { return canCancelRegistration; }
+    public void setCanCancelRegistration(boolean canCancelRegistration) { this.canCancelRegistration = canCancelRegistration; }
+    public boolean isCancelAllowed() { return canCancelRegistration; }
+    public void setCancelAllowed(boolean cancelAllowed) { this.canCancelRegistration = cancelAllowed; }
 
     public static class ConflictingEventSummary {
         private Long id;

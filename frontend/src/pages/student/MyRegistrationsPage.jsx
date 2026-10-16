@@ -78,7 +78,12 @@ export default function MyRegistrationsPage() {
     fetchRegistrations();
   }, []);
 
-  const handleCancelRegistration = async (eventId, eventTitle) => {
+  const handleCancelRegistration = async (eventId, eventTitle, canCancel = true) => {
+    if (!canCancel) {
+      toast.error('Registration cannot be cancelled because the event has already started or ended.');
+      return;
+    }
+
     if (!window.confirm(`Are you sure you want to cancel your registration for "${eventTitle}"?`)) {
       return;
     }
@@ -123,6 +128,9 @@ export default function MyRegistrationsPage() {
               const end = new Date(`${reg.eventDate}T${reg.endTime || '23:59:59'}`).getTime();
               const graceEnd = end + 24 * 3600 * 1000;
               const isCheckInOpen = !isPresent && (reg.attendanceState === 'CHECK_IN_OPEN' || (now >= start && now <= graceEnd));
+              const isEventPast = now >= end;
+              const hasStarted = now >= start;
+              const canCancel = reg.canCancel !== undefined ? reg.canCancel : (!isEventPast && !hasStarted && !isPresent);
 
               return (
                 <div
@@ -196,14 +204,26 @@ export default function MyRegistrationsPage() {
                   </Link>
 
                   {reg.status !== 'CANCELLED' && (
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      loading={cancellingId === reg.eventId}
-                      onClick={() => handleCancelRegistration(reg.eventId, reg.eventTitle)}
-                    >
-                      Cancel
-                    </Button>
+                    canCancel ? (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        loading={cancellingId === reg.eventId}
+                        onClick={() => handleCancelRegistration(reg.eventId, reg.eventTitle, canCancel)}
+                      >
+                        Cancel
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled
+                        className="cursor-not-allowed opacity-40 filter blur-[0.5px] bg-slate-900 border border-slate-800 text-slate-500 pointer-events-none select-none"
+                        title="Registration cannot be cancelled because the event has already started or ended"
+                      >
+                        Cancel
+                      </Button>
+                    )
                   )}
                   </div>
                 </div>

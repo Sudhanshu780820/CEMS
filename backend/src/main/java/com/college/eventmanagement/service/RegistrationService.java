@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import com.college.eventmanagement.util.DateTimeUtil;
 import java.util.List;
 import java.util.Optional;
@@ -146,12 +147,31 @@ public class RegistrationService {
             throw new BadRequestException("Registration is already cancelled.");
         }
 
+        Event event = registration.getEvent();
+        LocalDateTime now = DateTimeUtil.now();
+        LocalTime startTime = event.getStartTime() != null ? event.getStartTime() : LocalTime.of(0, 0);
+        LocalTime endTime = event.getEndTime() != null ? event.getEndTime() : LocalTime.of(23, 59, 59);
+        LocalDateTime eventStart = LocalDateTime.of(event.getEventDate(), startTime);
+        LocalDateTime eventEnd = LocalDateTime.of(event.getEventDate(), endTime);
+
+        if (event.getStatus() == EventStatus.COMPLETED || now.isAfter(eventEnd)) {
+            throw new BadRequestException("Registration cannot be cancelled because the event has already ended.");
+        }
+
+        if (now.isAfter(eventStart)) {
+            throw new BadRequestException("Registration cannot be cancelled after the event has started.");
+        }
+
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new BadRequestException("Cannot cancel registration for a cancelled event.");
+        }
+
+        if (attendanceRepository.findByEventIdAndStudentId(eventId, student.getId()).isPresent()) {
+            throw new BadRequestException("Registration cannot be cancelled because attendance has already been recorded.");
+        }
+
         // Decrement capacity
         eventRepository.decrementRegisteredCount(eventId);
-
-        // Delete attendance record if any exists
-        attendanceRepository.findByEventIdAndStudentId(eventId, student.getId())
-                .ifPresent(attendanceRepository::delete);
 
         // Delete registration record to free the slot and allow re-registration
         registrationRepository.delete(registration);
@@ -269,6 +289,19 @@ public class RegistrationService {
         if (r.getEvent().getEventDate() != null && r.getEvent().getEndTime() != null) {
             res.setCheckInClosesAt(LocalDateTime.of(r.getEvent().getEventDate(), r.getEvent().getEndTime()).plusHours(24));
         }
+
+        LocalTime st = r.getEvent().getStartTime() != null ? r.getEvent().getStartTime() : LocalTime.of(0, 0);
+        LocalTime et = r.getEvent().getEndTime() != null ? r.getEvent().getEndTime() : LocalTime.of(23, 59, 59);
+        LocalDateTime eventStart = LocalDateTime.of(r.getEvent().getEventDate(), st);
+        LocalDateTime eventEnd = LocalDateTime.of(r.getEvent().getEventDate(), et);
+
+        boolean canCancel = r.getStatus() != RegistrationStatus.CANCELLED
+                && r.getEvent().getStatus() != EventStatus.COMPLETED
+                && r.getEvent().getStatus() != EventStatus.CANCELLED
+                && now.isBefore(eventStart)
+                && now.isBefore(eventEnd)
+                && (attendance == null || attendance.getStatus() != AttendanceStatus.PRESENT);
+        res.setCanCancel(canCancel);
 
         return res;
     }

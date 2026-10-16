@@ -636,7 +636,23 @@ public class EventService {
                 r.setAttendanceState(attState);
                 r.setStudentAttendanceStatus(att != null && att.getStatus() == AttendanceStatus.PRESENT ? "PRESENT" : "ABSENT");
                 r.setCheckInAllowed("CHECK_IN_OPEN".equals(attState) && event.isAttendanceActive() && (att == null || att.getStatus() != AttendanceStatus.PRESENT));
+
+                LocalDateTime currentDateTime = DateTimeUtil.now();
+                LocalTime st = event.getStartTime() != null ? event.getStartTime() : LocalTime.of(0, 0);
+                LocalTime et = event.getEndTime() != null ? event.getEndTime() : LocalTime.of(23, 59, 59);
+                LocalDateTime eventStart = LocalDateTime.of(event.getEventDate(), st);
+                LocalDateTime eventEnd = LocalDateTime.of(event.getEventDate(), et);
+
+                boolean canCancel = event.getStatus() != EventStatus.COMPLETED
+                        && event.getStatus() != EventStatus.CANCELLED
+                        && currentDateTime.isBefore(eventStart)
+                        && currentDateTime.isBefore(eventEnd)
+                        && (att == null || att.getStatus() != AttendanceStatus.PRESENT);
+                r.setCanCancelRegistration(canCancel);
+                r.setCancelAllowed(canCancel);
             } else {
+                r.setCanCancelRegistration(false);
+                r.setCancelAllowed(false);
                 String attState = AttendanceService.determineAttendanceState(event, null, DateTimeUtil.now());
                 r.setAttendanceState(attState);
                 r.setStudentAttendanceStatus("ABSENT");
@@ -667,6 +683,8 @@ public class EventService {
             r.setAttendanceState(attState);
             r.setStudentAttendanceStatus("ABSENT");
             r.setCheckInAllowed(false);
+            r.setCanCancelRegistration(false);
+            r.setCancelAllowed(false);
 
             if (event.getStatus() == EventStatus.CANCELLED) {
                 r.setActionStatus("CANCELLED");

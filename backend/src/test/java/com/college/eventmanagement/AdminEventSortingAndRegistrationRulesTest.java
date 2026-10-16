@@ -157,6 +157,14 @@ public class AdminEventSortingAndRegistrationRulesTest {
                         }
                         return 0;
                     }
+                    if ("decrementRegisteredCount".equals(name)) {
+                        Long id = (Long) args[0];
+                        Event ev = repositoryEvents.stream().filter(e -> e.getId().equals(id)).findFirst().orElse(null);
+                        if (ev != null && ev.getRegisteredCount() > 0) {
+                            ev.setRegisteredCount(ev.getRegisteredCount() - 1);
+                        }
+                        return 1;
+                    }
                     if ("searchEvents".equals(name)) {
                         EventStatus status = (EventStatus) args[0];
                         String category = (String) args[1];
@@ -211,6 +219,11 @@ public class AdminEventSortingAndRegistrationRulesTest {
                         reg.setId((long) (repositoryRegistrations.size() + 1));
                         repositoryRegistrations.add(reg);
                         return reg;
+                    }
+                    if ("delete".equals(name)) {
+                        Registration reg = (Registration) args[0];
+                        repositoryRegistrations.remove(reg);
+                        return null;
                     }
                     return null;
                 }
@@ -562,5 +575,125 @@ public class AdminEventSortingAndRegistrationRulesTest {
                 registrationService.registerForEvent(14L, "student@college.edu")
         );
         assertTrue(ex.getMessage().contains("already ended"));
+    }
+
+    @Test
+    @DisplayName("15. Cancel Registration - Future event before start time can be cancelled and frees capacity")
+    void test15_cancelRegistration_futureEvent_success() {
+        LocalDate today = DateTimeUtil.today();
+        Event futureEvent = buildTestEvent(15L, "Hackathon 2026", today.plusDays(3), LocalTime.of(10, 0), LocalTime.of(18, 0),
+                today.minusDays(2), today.plusDays(1), EventStatus.PUBLISHED);
+        futureEvent.setRegisteredCount(1);
+        repositoryEvents.add(futureEvent);
+
+        Registration reg = new Registration(futureEvent, approvedStudent);
+        reg.setId(101L);
+        reg.setStatus(RegistrationStatus.REGISTERED);
+        repositoryRegistrations.add(reg);
+
+        // Cancel registration
+        assertDoesNotThrow(() -> registrationService.cancelRegistration(15L, "student@college.edu"));
+
+        // Capacity is decremented
+        assertEquals(0, futureEvent.getRegisteredCount());
+        // Registration record removed
+        assertTrue(repositoryRegistrations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("16. Cancel Registration - Past ended event cannot be cancelled by backend")
+    void test16_cancelRegistration_pastEndedEvent_rejected() {
+        LocalDate today = DateTimeUtil.today();
+        // Event took place 4 days ago (like the Vibrance 2026 event on 13 Oct in the user's report)
+        Event pastEvent = buildTestEvent(16L, "Vibrance 2026", today.minusDays(4), LocalTime.of(16, 0), LocalTime.of(21, 0),
+                today.minusDays(20), today.minusDays(8), EventStatus.PUBLISHED);
+        pastEvent.setRegisteredCount(50);
+        repositoryEvents.add(pastEvent);
+
+        Registration reg = new Registration(pastEvent, approvedStudent);
+        reg.setId(102L);
+        reg.setStatus(RegistrationStatus.REGISTERED);
+        repositoryRegistrations.add(reg);
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                registrationService.cancelRegistration(16L, "student@college.edu")
+        );
+        assertTrue(ex.getMessage().contains("already ended"));
+        // Capacity not changed
+        assertEquals(50, pastEvent.getRegisteredCount());
+        // Registration intact
+        assertFalse(repositoryRegistrations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("17. Cancel Registration - Event that has already started today cannot be cancelled")
+    void test17_cancelRegistration_startedEvent_rejected() {
+        LocalDate today = DateTimeUtil.today();
+        LocalTime now = DateTimeUtil.currentTime();
+        // Started 10 minutes ago, ends in 1 hour
+        Event startedEvent = buildTestEvent(17L, "Ongoing Workshop", today, now.minusMinutes(10), now.plusHours(1),
+                today.minusDays(5), today.minusDays(1), EventStatus.PUBLISHED);
+        startedEvent.setRegisteredCount(20);
+        repositoryEvents.add(startedEvent);
+
+        Registration reg = new Registration(startedEvent, approvedStudent);
+        reg.setId(103L);
+        reg.setStatus(RegistrationStatus.REGISTERED);
+        repositoryRegistrations.add(reg);
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                registrationService.cancelRegistration(17L, "student@college.edu")
+        );
+        assertTrue(ex.getMessage().contains("has started") || ex.getMessage().contains("already ended"),
+                "Actual exception message was: [" + ex.getMessage() + "]");
+    }
+
+    @Test
+    @DisplayName("18. Cancel Registration - Completed event cannot be cancelled")
+    void test18_cancelRegistration_completedEvent_rejected() {
+        LocalDate today = DateTimeUtil.today();
+        Event completedEvent = buildTestEvent(18L, "Completed Conference", today.plusDays(1), LocalTime.of(10, 0), LocalTime.of(16, 0),
+                today.minusDays(5), today, EventStatus.COMPLETED);
+        completedEvent.setRegisteredCount(30);
+        repositoryEvents.add(completedEvent);
+
+        Registration reg = new Registration(completedEvent, approvedStudent);
+        reg.setId(104L);
+        reg.setStatus(RegistrationStatus.REGISTERED);
+        repositoryRegistrations.add(reg);
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () ->
+                registrationService.cancelRegistration(18L, "student@college.edu")
+        );
+        assertTrue(ex.getMessage().contains("already ended"));
+    }
+
+    @Test
+    @DisplayName("19. EventResponse & RegistrationResponse canCancel flags are false for past events")
+    void test19_eventResponse_canCancelRegistration_flag() {
+        LocalDate today = DateTimeUtil.today();
+        // Past event
+        Event pastEvent = buildTestEvent(19L, "Vibrance 2026 Past", today.minusDays(4), LocalTime.of(16, 0), LocalTime.of(21, 0),
+                today.minusDays(20), today.minusDays(8), EventStatus.PUBLISHED);
+        Registration reg = new Registration(pastEvent, approvedStudent);
+        reg.setId(105L);
+        repositoryRegistrations.add(reg);
+
+        EventResponse response = eventService.mapToEventResponse(pastEvent, approvedStudent);
+        assertTrue(response.isRegistered());
+        assertFalse(response.isCanCancelRegistration(), "Past event must have canCancelRegistration=false");
+        assertFalse(response.isCancelAllowed(), "Past event must have isCancelAllowed=false");
+
+        // Future event
+        Event futureEvent = buildTestEvent(20L, "Future Hackathon", today.plusDays(5), LocalTime.of(10, 0), LocalTime.of(18, 0),
+                today.minusDays(2), today.plusDays(1), EventStatus.PUBLISHED);
+        Registration futureReg = new Registration(futureEvent, approvedStudent);
+        futureReg.setId(106L);
+        repositoryRegistrations.add(futureReg);
+
+        EventResponse futureResponse = eventService.mapToEventResponse(futureEvent, approvedStudent);
+        assertTrue(futureResponse.isRegistered());
+        assertTrue(futureResponse.isCanCancelRegistration(), "Future event before start must have canCancelRegistration=true");
+        assertTrue(futureResponse.isCancelAllowed());
     }
 }
